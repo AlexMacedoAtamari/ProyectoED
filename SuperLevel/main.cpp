@@ -2,62 +2,27 @@
 #include <commctrl.h>
 #include <stdio.h>
 #include <vector>
+#include <algorithm>
+#include <set>
+#include <queue>
+#include <cmath>
+#include <string>
+#include <memory>
 #include "resource.h"
 
-void DrawAND(HDC hdc, int x, int y);
-void DrawOR(HDC hdc, int x, int y);
-void DrawXOR(HDC hdc, int x, int y);
-void DrawNOT(HDC hdc, int x, int y);
-void DrawNAND(HDC hdc, int x, int y);
-void DrawNOR(HDC hdc, int x, int y);
-void DrawXNOR(HDC hdc, int x, int y);
+// ============================================================================
+// CONSTANTES Y CONFIGURACI√ìN
+// ============================================================================
+constexpr int MAX_UNDO_STACK = 50;
+constexpr int PIN_SNAP_DISTANCE = 100;
+constexpr int GATE_WIDTH = 70;
+constexpr int GATE_HEIGHT = 35;
+constexpr int GRID_SIZE = 20;
+constexpr int CABLE_HIT_DISTANCE = 5;
 
-bool cableMode = false;     // øEl usuario est· colocando un cable?
-bool cableDrawing = false;  // øYa se hizo el primer clic?
-POINT cableStart;           // Punto inicial del cable
-POINT cableEnd;             // Punto final del cable
-
-// Para el sistema de cables basados en pines
-int startGateIndex = -1;
-int startPinIndex  = -1;
-
-struct GatePin {
-    int x;
-    int y;
-};
-
-struct Gate {
-    int x, y;          // posiciÛn de la compuerta
-    GatePin in1;
-    GatePin in2;
-    GatePin out;
-};
-
-Gate gates[7];
-
-bool IsNear(int mx, int my, GatePin pin)
-{
-    int dx = mx - pin.x;
-    int dy = my - pin.y;
-    return (dx*dx + dy*dy) < 100; // radio 10 px
-}
-
-
-struct Cable {
-    int gateStart;   // Ìndice de compuerta origen
-    int pinStart;    // 0 = in1, 1 = in2, 2 = out
-
-    int gateEnd;     // Ìndice de compuerta destino
-    int pinEnd;      // 0 = in1, 1 = in2, 2 = out
-
-    int value = -1; // valor lÛgico transportado
-
-};
-
-
-
-std::vector<Cable> cables;
-
+// ============================================================================
+// ENUMERACIONES
+// ============================================================================
 enum GateType {
     GATE_AND,
     GATE_OR,
@@ -70,6 +35,50 @@ enum GateType {
     GATE_LED
 };
 
+enum Mode {
+    MODE_NORMAL,
+    MODE_PLACING,
+    MODE_CABLE,
+    MODE_DELETE
+};
+
+enum PinType {
+    PIN_INPUT1 = 0,
+    PIN_INPUT2 = 1,
+    PIN_OUTPUT = 2
+};
+
+// ============================================================================
+// CLASE PARA GESTI√ìN AUTOM√ÅTICA DE RECURSOS GDI
+// ============================================================================
+class GDIGuard {
+private:
+    HDC hdc;
+    HGDIOBJ oldObj;
+    HGDIOBJ newObj;
+
+public:
+    GDIGuard(HDC h, HGDIOBJ obj) : hdc(h), newObj(obj) {
+        oldObj = SelectObject(hdc, newObj);
+    }
+
+    ~GDIGuard() {
+        if (hdc && oldObj) {
+            SelectObject(hdc, oldObj);
+        }
+        if (newObj) {
+            DeleteObject(newObj);
+        }
+    }
+
+    // Prevenir copia
+    GDIGuard(const GDIGuard&) = delete;
+    GDIGuard& operator=(const GDIGuard&) = delete;
+};
+
+// ============================================================================
+// ESTRUCTURAS
+// ============================================================================
 struct GateInstance {
     GateType type;
     int x;
@@ -77,748 +86,1051 @@ struct GateInstance {
     POINT in1;
     POINT in2;
     POINT out;
+    int val_in1;
+    int val_in2;
+    int val_out;
+    bool selected;
 
-    // valores lÛgicos
-    int val_in1 = -1;   // -1 = sin conexiÛn
-    int val_in2 = -1;
-    int val_out = -1;
+    GateInstance() : type(GATE_AND), x(0), y(0),
+                     val_in1(-1), val_in2(-1), val_out(0), selected(false) {
+        in1.x = in1.y = 0;
+        in2.x = in2.y = 0;
+        out.x = out.y = 0;
+    }
 
+    bool HasInput1() const {
+        return type != GATE_SWITCH;
+    }
+
+    bool HasInput2() const {
+        return type != GATE_NOT && type != GATE_SWITCH && type != GATE_LED;
+    }
+
+    bool HasOutput() const {
+        return type != GATE_LED;
+    }
 };
 
-POINT GetPinPosition(const GateInstance &g, int pin)
-{
-    switch(pin)
-    {
-        case 0: return g.in1;
-        case 1: return g.in2;
-        case 2: return g.out;
+struct Cable {
+    int gateStart;
+    int pinStart;
+    int gateEnd;
+    int pinEnd;
+    int value;
+    bool selected;
+
+    Cable() : gateStart(-1), pinStart(-1), gateEnd(-1), pinEnd(-1),
+              value(-1), selected(false) {}
+
+    bool IsValid() const {
+        return gateStart >= 0 && gateEnd >= 0;
     }
-    POINT p = {0,0};
-    return p;
-}
+};
 
-std::vector<GateInstance> placedGates;
+struct HistoryState {
+    std::vector<GateInstance> gates;
+    std::vector<Cable> cables;
+};
 
-bool placingGate = false;
-GateType selectedGate;
+// ============================================================================
+// CLASE PRINCIPAL DEL CIRCUITO
+// ============================================================================
+class Circuit {
+public:
+    std::vector<GateInstance> gates;
+    std::vector<Cable> cables;
+    std::vector<HistoryState> undoStack;
+    std::vector<HistoryState> redoStack;
 
-void ComputePins(GateInstance &g)
-{
-    switch (g.type)
-    {
-        case GATE_AND:
-        case GATE_NAND:
-            g.in1 = { g.x - 15, g.y + 10 };
-            g.in2 = { g.x - 15, g.y + 20 };
-            g.out = { g.x + 60, g.y + 15 };
-            break;
+    void SaveState() {
+        HistoryState state;
+        state.gates = gates;
+        state.cables = cables;
+        undoStack.push_back(state);
 
-        case GATE_OR:
-        case GATE_NOR:
-            g.in1 = { g.x - 10, g.y + 10 };
-            g.in2 = { g.x - 10, g.y + 20 };
-            g.out = { g.x + 60, g.y + 15 };
-            break;
-
-        case GATE_XOR:
-        case GATE_XNOR:
-            g.in1 = { g.x - 10, g.y + 10 };
-            g.in2 = { g.x - 10, g.y + 20 };
-            g.out = { g.x + 60, g.y + 15 };
-            break;
-
-        case GATE_NOT:
-            g.in1 = { g.x - 15, g.y + 15 };
-            g.out = { g.x + 50, g.y + 15 };
-            break;
-
-        case GATE_SWITCH:
-            g.in1 = {0,0};
-            g.in2 = {0,0};
-            g.out = { g.x + 40, g.y + 15 };
-            break;
-
-        case GATE_LED:
-            g.in1 = { g.x - 10, g.y + 15 };
-            g.in2 = {0,0};
-            g.out = {0,0};
-            break;
-
+        if (undoStack.size() > MAX_UNDO_STACK) {
+            undoStack.erase(undoStack.begin());
+        }
+        redoStack.clear();
     }
-}
 
-void DrawSwitch(HDC hdc, const GateInstance &g) // Switch ON/OFF
-{
-    Rectangle(hdc, g.x, g.y, g.x + 40, g.y + 30);
+    bool Undo() {
+        if (undoStack.empty()) return false;
 
-    const char *txt = (g.val_out == 1) ? "ON" : "OFF";
-    TextOut(hdc, g.x + 10, g.y + 8, txt, strlen(txt));
+        HistoryState current;
+        current.gates = gates;
+        current.cables = cables;
+        redoStack.push_back(current);
 
-    // salida
-    MoveToEx(hdc, g.out.x, g.out.y, NULL);
-    LineTo(hdc, g.out.x + 15, g.out.y);
-}
+        HistoryState prev = undoStack.back();
+        undoStack.pop_back();
 
-void DrawLED(HDC hdc, const GateInstance &g) // Led rojo/verde
-{
-    HBRUSH brush;
+        gates = prev.gates;
+        cables = prev.cables;
 
-    if (g.val_in1 == 1)
-        brush = CreateSolidBrush(RGB(0, 255, 0)); // verde
-    else
-        brush = CreateSolidBrush(RGB(255, 0, 0)); // rojo
+        return true;
+    }
 
-    HBRUSH old = (HBRUSH)SelectObject(hdc, brush);
+    bool Redo() {
+        if (redoStack.empty()) return false;
 
-    Ellipse(hdc, g.x, g.y, g.x + 30, g.y + 30);
+        HistoryState current;
+        current.gates = gates;
+        current.cables = cables;
+        undoStack.push_back(current);
 
-    SelectObject(hdc, old);
-    DeleteObject(brush);
+        HistoryState next = redoStack.back();
+        redoStack.pop_back();
 
-    // entrada
-    MoveToEx(hdc, g.in1.x, g.in1.y, NULL);
-    LineTo(hdc, g.in1.x - 15, g.in1.y);
-}
+        gates = next.gates;
+        cables = next.cables;
 
-bool SnapToPin(int mx, int my, int &gateIndex, int &pinIndex, POINT &result)
-{
-    for (int i = 0; i < placedGates.size(); i++)
-    {
-        GateInstance &g = placedGates[i];
+        return true;
+    }
 
-        // LED primero (solo entrada)
-        if (g.type == GATE_LED)
-        {
-            int dx = mx - g.in1.x;
-            int dy = my - g.in1.y;
-            if (dx*dx + dy*dy < 100)
-            {
-                gateIndex = i;
-                pinIndex = 0;
-                result = g.in1;
-                return true;
+    void Clear() {
+        gates.clear();
+        cables.clear();
+    }
+
+    void ComputePins(GateInstance &gate) const {
+        switch (gate.type) {
+            case GATE_AND:
+            case GATE_NAND:
+                gate.in1.x = gate.x - 15; gate.in1.y = gate.y + 10;
+                gate.in2.x = gate.x - 15; gate.in2.y = gate.y + 20;
+                gate.out.x = gate.x + 60; gate.out.y = gate.y + 15;
+                break;
+
+            case GATE_OR:
+            case GATE_NOR:
+                gate.in1.x = gate.x - 10; gate.in1.y = gate.y + 10;
+                gate.in2.x = gate.x - 10; gate.in2.y = gate.y + 20;
+                gate.out.x = gate.x + 60; gate.out.y = gate.y + 15;
+                break;
+
+            case GATE_XOR:
+            case GATE_XNOR:
+                gate.in1.x = gate.x - 10; gate.in1.y = gate.y + 10;
+                gate.in2.x = gate.x - 10; gate.in2.y = gate.y + 20;
+                gate.out.x = gate.x + 60; gate.out.y = gate.y + 15;
+                break;
+
+            case GATE_NOT:
+                gate.in1.x = gate.x - 15; gate.in1.y = gate.y + 15;
+                gate.in2.x = 0; gate.in2.y = 0;
+                gate.out.x = gate.x + 50; gate.out.y = gate.y + 15;
+                break;
+
+            case GATE_SWITCH:
+                gate.in1.x = 0; gate.in1.y = 0;
+                gate.in2.x = 0; gate.in2.y = 0;
+                gate.out.x = gate.x + 40; gate.out.y = gate.y + 15;
+                break;
+
+            case GATE_LED:
+                gate.in1.x = gate.x - 10; gate.in1.y = gate.y + 15;
+                gate.in2.x = 0; gate.in2.y = 0;
+                gate.out.x = 0; gate.out.y = 0;
+                break;
+        }
+    }
+
+    POINT GetPinPosition(const GateInstance &gate, int pin) const {
+        switch(pin) {
+            case PIN_INPUT1: return gate.in1;
+            case PIN_INPUT2: return gate.in2;
+            case PIN_OUTPUT: return gate.out;
+        }
+        POINT p = {0, 0};
+        return p;
+    }
+
+    bool IsValidConnection(int startGate, int startPin, int endGate, int endPin) const {
+        // No conectar consigo mismo
+        if (startGate == endGate) return false;
+
+        // Validar que el pin de inicio sea una salida
+        if (startPin != PIN_OUTPUT) return false;
+
+        // Validar que el pin final sea una entrada
+        if (endPin == PIN_OUTPUT) return false;
+
+        // El LED solo puede conectarse a entrada 1
+        if (gates[endGate].type == GATE_LED && endPin != PIN_INPUT1) return false;
+
+        // SWITCH solo puede conectar desde su salida
+        if (gates[startGate].type == GATE_SWITCH && startPin != PIN_OUTPUT) return false;
+
+        // LED no tiene salida
+        if (gates[startGate].type == GATE_LED) return false;
+
+        // Verificar que la entrada no est√© ya conectada
+        for (const auto& cable : cables) {
+            if (cable.gateEnd == endGate && cable.pinEnd == endPin) {
+                return false; // Ya hay una conexi√≥n en esta entrada
             }
-            continue;
         }
 
-        // SWITCH despuÈs (solo salida)
-        if (g.type == GATE_SWITCH)
-        {
-            int dx = mx - g.out.x;
-            int dy = my - g.out.y;
-            if (dx*dx + dy*dy < 100)
-            {
-                gateIndex = i;
-                pinIndex = 2;
-                result = g.out;
-                return true;
-            }
-            continue;
-        }
-
-        // Compuertas normales al final
-
-        // Entrada 1
-        int dx = mx - g.in1.x;
-        int dy = my - g.in1.y;
-        if (dx*dx + dy*dy < 100)
-        {
-            gateIndex = i;
-            pinIndex = 0;
-            result = g.in1;
-            return true;
-        }
-
-        // Entrada 2
-        if (g.type != GATE_NOT)
-        {
-            dx = mx - g.in2.x;
-            dy = my - g.in2.y;
-            if (dx*dx + dy*dy < 100)
-            {
-                gateIndex = i;
-                pinIndex = 1;
-                result = g.in2;
-                return true;
+        // Verificar que no exista ya esta conexi√≥n exacta
+        for (const auto& cable : cables) {
+            if (cable.gateStart == startGate && cable.pinStart == startPin &&
+                cable.gateEnd == endGate && cable.pinEnd == endPin) {
+                return false;
             }
         }
 
-        // Salida
-        dx = mx - g.out.x;
-        dy = my - g.out.y;
-        if (dx*dx + dy*dy < 100)
-        {
-            gateIndex = i;
-            pinIndex = 2;
-            result = g.out;
-            return true;
+        return true;
+    }
+
+    bool DetectLoop() const {
+        std::vector<std::set<int>> graph(gates.size());
+
+        for (const auto& cable : cables) {
+            graph[cable.gateStart].insert(cable.gateEnd);
+        }
+
+        std::vector<int> color(gates.size(), 0);
+
+        for (size_t start = 0; start < gates.size(); start++) {
+            if (color[start] != 0) continue;
+
+            std::vector<int> stack;
+            stack.push_back(static_cast<int>(start));
+
+            while (!stack.empty()) {
+                int u = stack.back();
+
+                if (color[u] == 0) {
+                    color[u] = 1;
+                    for (int v : graph[u]) {
+                        if (color[v] == 1) return true;
+                        if (color[v] == 0) {
+                            stack.push_back(v);
+                        }
+                    }
+                } else {
+                    color[u] = 2;
+                    stack.pop_back();
+                }
+            }
+        }
+        return false;
+    }
+
+    int EvaluateGate(const GateInstance &gate) const {
+        switch (gate.type) {
+            case GATE_AND:
+                return (gate.val_in1 == 1 && gate.val_in2 == 1) ? 1 : 0;
+            case GATE_OR:
+                return (gate.val_in1 == 1 || gate.val_in2 == 1) ? 1 : 0;
+            case GATE_XOR:
+                return (gate.val_in1 != gate.val_in2) ? 1 : 0;
+            case GATE_NOT:
+                return (gate.val_in1 == 1) ? 0 : 1;
+            case GATE_NAND:
+                return (gate.val_in1 == 1 && gate.val_in2 == 1) ? 0 : 1;
+            case GATE_NOR:
+                return (gate.val_in1 == 1 || gate.val_in2 == 1) ? 0 : 1;
+            case GATE_XNOR:
+                return (gate.val_in1 == gate.val_in2) ? 1 : 0;
+            default:
+                return -1;
         }
     }
 
-    return false;
-}
-
-bool draggingGate = false;
-int draggedGateIndex = -1;
-int dragOffsetX = 0;
-int dragOffsetY = 0;
-
-int HitTestGate(int mx, int my)
-{
-    for (int i = 0; i < placedGates.size(); i++)
-    {
-        GateInstance &g = placedGates[i];
-
-        // TamaÒo aproximado de cada compuerta
-        int w = 60;
-        int h = 30;
-
-        if (mx >= g.x && mx <= g.x + w &&
-            my >= g.y && my <= g.y + h)
-        {
-            return i; // Ìndice de la compuerta
-        }
-    }
-    return -1; // no se tocÛ ninguna
-}
-
-int EvaluateGate(const GateInstance &g) // Evaluar una compuerta
-{
-    switch (g.type)
-    {
-        case GATE_AND:
-            return (g.val_in1 == 1 && g.val_in2 == 1) ? 1 : 0;
-
-        case GATE_OR:
-            return (g.val_in1 == 1 || g.val_in2 == 1) ? 1 : 0;
-
-        case GATE_XOR:
-            return (g.val_in1 != g.val_in2) ? 1 : 0;
-
-        case GATE_NOT:
-            return (g.val_in1 == 1) ? 0 : 1;
-
-        case GATE_NAND:
-            return !((g.val_in1 == 1 && g.val_in2 == 1) ? 1 : 0);
-
-        case GATE_NOR:
-            return !((g.val_in1 == 1 || g.val_in2 == 1) ? 1 : 0);
-
-        case GATE_XNOR:
-            return (g.val_in1 == g.val_in2) ? 1 : 0;
-    }
-    return -1;
-}
-
-void PropagateSignals()
-{
-    // Primero, limpiar todas las entradas
-    for (auto &g : placedGates)
-    {
-        g.val_in1 = -1;
-        g.val_in2 = -1;
-    }
-
-    // SWITCHES: mantener su valor de salida
-    // (este es el cÛdigo del paso 8, parte 1)
-    for (auto &g : placedGates)
-    {
-        if (g.type == GATE_SWITCH)
-        {
-            // El switch ya tiene val_out asignado por el usuario
-            // No se recalcula, solo se conserva
-            g.val_out = g.val_out;
-        }
-    }
-
-    // Propagar valores desde las salidas hacia las entradas
-    for (auto &c : cables)
-    {
-        GateInstance &src = placedGates[c.gateStart];
-        GateInstance &dst = placedGates[c.gateEnd];
-
-        // Obtener valor de salida del gate origen
-        int val = src.val_out;
-        c.value = val;
-
-        // Asignar al pin destino
-        if (c.pinEnd == 0) dst.val_in1 = val;
-        if (c.pinEnd == 1) dst.val_in2 = val;
-    }
-
-    // Recalcular salidas
-    for (auto &g : placedGates)
-    {
-        if (g.type == GATE_LED)
-        {
-            // El LED solo recibe val_in1
-            // No produce salida
-            continue;
+    void PropagateSignals() {
+        // Resetear entradas de todas las compuertas (excepto switches)
+        for (auto& gate : gates) {
+            if (gate.type != GATE_SWITCH) {
+                gate.val_in1 = -1;
+                gate.val_in2 = -1;
+            }
         }
 
-        if (g.type == GATE_SWITCH)
-        {
-            // El switch ya tiene val_out asignado por el usuario
-            continue;
-        }
+        // Propagaci√≥n topol√≥gica mejorada
+        bool changed = true;
+        int iterations = 0;
+        const int MAX_ITERATIONS = 100;
 
-        // Compuertas lÛgicas normales
-        g.val_out = EvaluateGate(g);
-    }
-}
+        while (changed && iterations < MAX_ITERATIONS) {
+            changed = false;
+            iterations++;
 
-HINSTANCE hInst;
+            // Propagar valores a trav√©s de los cables
+            for (auto& cable : cables) {
+                if (cable.gateStart < 0 || cable.gateStart >= static_cast<int>(gates.size()) ||
+                    cable.gateEnd < 0 || cable.gateEnd >= static_cast<int>(gates.size())) {
+                    continue;
+                }
 
-BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    switch(uMsg)
-    {
-    case WM_INITDIALOG:
-    {
-        // AND en (50,100)
-        gates[0].x = 50; gates[0].y = 100;
-        gates[0].in1 = {50 - 15, 100 + 10};
-        gates[0].in2 = {50 - 15, 100 + 20};
-        gates[0].out = {50 + 60, 100 + 15};
+                GateInstance& src = gates[cable.gateStart];
+                GateInstance& dst = gates[cable.gateEnd];
 
-        // NAND en (175,100)
-        gates[1].x = 175; gates[1].y = 100;
-        gates[1].in1 = {175 - 15, 100 + 10};
-        gates[1].in2 = {175 - 15, 100 + 20};
-        gates[1].out = {175 + 65, 100 + 15};
+                int val = src.val_out;
+                cable.value = val;
 
-        // OR en (290,100)
-        gates[2].x = 290; gates[2].y = 100;
-        gates[2].in1 = {290 - 10, 100 + 10};
-        gates[2].in2 = {290 - 10, 100 + 20};
-        gates[2].out = {290 + 60, 100 + 15};
+                int* target = (cable.pinEnd == PIN_INPUT1) ? &dst.val_in1 : &dst.val_in2;
 
-        // NOR en (410,100)
-        gates[3].x = 410; gates[3].y = 100;
-        gates[3].in1 = {410 - 10, 100 + 10};
-        gates[3].in2 = {410 - 10, 100 + 20};
-        gates[3].out = {410 + 65, 100 + 15};
-
-        // NOT en (540,100)
-        gates[4].x = 540; gates[4].y = 100;
-        gates[4].in1 = {540 - 15, 100 + 15};
-        gates[4].out = {540 + 50, 100 + 15};
-
-        // XOR en (650,100)
-        gates[5].x = 650; gates[5].y = 100;
-        gates[5].in1 = {650 - 10, 100 + 10};
-        gates[5].in2 = {650 - 10, 100 + 20};
-        gates[5].out = {650 + 60, 100 + 15};
-
-        // XNOR en (770,100)
-        gates[6].x = 770; gates[6].y = 100;
-        gates[6].in1 = {770 - 10, 100 + 10};
-        gates[6].in2 = {770 - 10, 100 + 20};
-        gates[6].out = {770 + 65, 100 + 15};
-
-    }
-    return TRUE;
-
-    case WM_CLOSE:
-    {
-        EndDialog(hwndDlg, 0);
-    }
-    return TRUE;
-
-    case WM_COMMAND:
-    {
-        switch(LOWORD(wParam))
-        {
-            case ID_BTN_AND:
-                placingGate = true;
-                selectedGate = GATE_AND;
-                MessageBox(hwndDlg, "Compuerta AND seleccionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_NAND:
-                placingGate = true;
-                selectedGate = GATE_NAND;
-                MessageBox(hwndDlg, "Compuerta NAND seleccionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_OR:
-                placingGate = true;
-                selectedGate = GATE_OR;
-                MessageBox(hwndDlg, "Compuerta OR selecionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_NOR:
-                placingGate = true;
-                selectedGate = GATE_NOR;
-                MessageBox(hwndDlg, "Compuerta NOR selecionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_NOT:
-                placingGate = true;
-                selectedGate = GATE_NOT;
-                MessageBox(hwndDlg, "Compuerta NOT selecionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_XOR:
-                placingGate = true;
-                selectedGate = GATE_XOR;
-                MessageBox(hwndDlg, "Compuerta XOR selecionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_XNOR:
-                placingGate = true;
-                selectedGate = GATE_XNOR;
-                MessageBox(hwndDlg, "Compuerta XNOR selecionada", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_CABLE:
-                cableMode = true;
-                cableDrawing = false;
-                MessageBox(hwndDlg, "Modo cable activado.\nHaga clic en un punto de salida.", "Cable", MB_OK);
-                break;
-
-            case ID_BTN_SWITCH:
-                placingGate = true;
-                selectedGate = GATE_SWITCH;
-                MessageBox(hwndDlg, "Haga clic para colocar un SWITCH", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_LED:
-                placingGate = true;
-                selectedGate = GATE_LED;
-                MessageBox(hwndDlg, "Haga clic para colocar un LED", "Simulador", MB_OK);
-                break;
-
-            case ID_BTN_EXIT:
-                EndDialog(hwndDlg, 0);
-                break;
-        }
-    }
-    return TRUE;
-
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwndDlg, &ps);
-
-        HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0,0,0));
-        HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
-
-        DrawAND(hdc, 50, 100);
-        DrawOR(hdc, 290, 100);
-        DrawXOR(hdc, 650, 100);
-        DrawNOT(hdc, 540, 100);
-        DrawNAND(hdc, 175, 100);
-        DrawNOR(hdc, 410, 100);
-        DrawXNOR(hdc, 770, 100);
-
-        for (const GateInstance &g : placedGates)
-        {
-            switch (g.type)
-            {
-                case GATE_AND:  DrawAND(hdc, g.x, g.y); break;
-                case GATE_OR:   DrawOR(hdc, g.x, g.y); break;
-                case GATE_XOR:  DrawXOR(hdc, g.x, g.y); break;
-                case GATE_NOT:  DrawNOT(hdc, g.x, g.y); break;
-                case GATE_NAND: DrawNAND(hdc, g.x, g.y); break;
-                case GATE_NOR:  DrawNOR(hdc, g.x, g.y); break;
-                case GATE_XNOR: DrawXNOR(hdc, g.x, g.y); break;
-
-                case GATE_SWITCH: DrawSwitch(hdc, g); break;
-                case GATE_LED:    DrawLED(hdc, g); break;
-
+                if (*target != val) {
+                    *target = val;
+                    changed = true;
+                }
             }
 
-            // Valor de las compuertas
-            char buf[10];
-            sprintf(buf, "%d", g.val_out);
-            TextOut(hdc, g.out.x + 5, g.out.y - 10, buf, strlen(buf));
+            // Evaluar compuertas
+            for (auto& gate : gates) {
+                if (gate.type == GATE_LED || gate.type == GATE_SWITCH) continue;
+
+                // Solo evaluar si las entradas est√°n listas
+                if (gate.HasInput1() && gate.val_in1 == -1) continue;
+                if (gate.HasInput2() && gate.val_in2 == -1) continue;
+
+                int newOut = EvaluateGate(gate);
+
+                if (gate.val_out != newOut) {
+                    gate.val_out = newOut;
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    bool SnapToPin(int mx, int my, int& gateIndex, int& pinIndex, POINT& result) const {
+        for (size_t i = 0; i < gates.size(); i++) {
+            const GateInstance& gate = gates[i];
+
+            // LED - solo entrada
+            if (gate.type == GATE_LED) {
+                int dx = mx - gate.in1.x;
+                int dy = my - gate.in1.y;
+                if (dx*dx + dy*dy < PIN_SNAP_DISTANCE) {
+                    gateIndex = static_cast<int>(i);
+                    pinIndex = PIN_INPUT1;
+                    result = gate.in1;
+                    return true;
+                }
+                continue;
+            }
+
+            // SWITCH - solo salida
+            if (gate.type == GATE_SWITCH) {
+                int dx = mx - gate.out.x;
+                int dy = my - gate.out.y;
+                if (dx*dx + dy*dy < PIN_SNAP_DISTANCE) {
+                    gateIndex = static_cast<int>(i);
+                    pinIndex = PIN_OUTPUT;
+                    result = gate.out;
+                    return true;
+                }
+                continue;
+            }
+
+            // Entrada 1
+            if (gate.HasInput1()) {
+                int dx = mx - gate.in1.x;
+                int dy = my - gate.in1.y;
+                if (dx*dx + dy*dy < PIN_SNAP_DISTANCE) {
+                    gateIndex = static_cast<int>(i);
+                    pinIndex = PIN_INPUT1;
+                    result = gate.in1;
+                    return true;
+                }
+            }
+
+            // Entrada 2
+            if (gate.HasInput2()) {
+                int dx = mx - gate.in2.x;
+                int dy = my - gate.in2.y;
+                if (dx*dx + dy*dy < PIN_SNAP_DISTANCE) {
+                    gateIndex = static_cast<int>(i);
+                    pinIndex = PIN_INPUT2;
+                    result = gate.in2;
+                    return true;
+                }
+            }
+
+            // Salida
+            if (gate.HasOutput()) {
+                int dx = mx - gate.out.x;
+                int dy = my - gate.out.y;
+                if (dx*dx + dy*dy < PIN_SNAP_DISTANCE) {
+                    gateIndex = static_cast<int>(i);
+                    pinIndex = PIN_OUTPUT;
+                    result = gate.out;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    int HitTestGate(int mx, int my) const {
+        for (int i = static_cast<int>(gates.size()) - 1; i >= 0; i--) {
+            const GateInstance& gate = gates[i];
+            if (mx >= gate.x - 15 && mx <= gate.x + GATE_WIDTH &&
+                my >= gate.y && my <= gate.y + GATE_HEIGHT) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    int HitTestCable(int mx, int my) const {
+        for (size_t i = 0; i < cables.size(); i++) {
+            const Cable& cable = cables[i];
+
+            if (cable.gateStart < 0 || cable.gateStart >= static_cast<int>(gates.size()) ||
+                cable.gateEnd < 0 || cable.gateEnd >= static_cast<int>(gates.size())) {
+                continue;
+            }
+
+            POINT p1 = GetPinPosition(gates[cable.gateStart], cable.pinStart);
+            POINT p2 = GetPinPosition(gates[cable.gateEnd], cable.pinEnd);
+
+            float dx = static_cast<float>(p2.x - p1.x);
+            float dy = static_cast<float>(p2.y - p1.y);
+            float len = sqrt(dx*dx + dy*dy);
+
+            if (len < 1) continue;
+
+            float t = ((mx - p1.x) * dx + (my - p1.y) * dy) / (len * len);
+            t = std::max(0.0f, std::min(1.0f, t));
+
+            float projX = p1.x + t * dx;
+            float projY = p1.y + t * dy;
+            float dist = sqrt((mx - projX)*(mx - projX) + (my - projY)*(my - projY));
+
+            if (dist < CABLE_HIT_DISTANCE) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+
+    void InvalidateGateRegion(HWND hwnd, const GateInstance& gate) const {
+        RECT rect;
+        rect.left = gate.x - 25;
+        rect.top = gate.y - 10;
+        rect.right = gate.x + 80;
+        rect.bottom = gate.y + 45;
+        InvalidateRect(hwnd, &rect, FALSE);
+    }
+
+    std::string ValidateCircuit() const {
+        // Verificar LEDs sin entrada
+        for (size_t i = 0; i < gates.size(); i++) {
+            if (gates[i].type == GATE_LED) {
+                bool hasInput = false;
+                for (const auto& cable : cables) {
+                    if (cable.gateEnd == static_cast<int>(i)) {
+                        hasInput = true;
+                        break;
+                    }
+                }
+                if (!hasInput) {
+                    return "Advertencia: Hay LEDs sin conexi√≥n de entrada";
+                }
+            }
         }
 
+        // Verificar compuertas sin salidas conectadas
+        for (size_t i = 0; i < gates.size(); i++) {
+            if (gates[i].type != GATE_LED && gates[i].type != GATE_SWITCH) {
+                bool hasOutput = false;
+                for (const auto& cable : cables) {
+                    if (cable.gateStart == static_cast<int>(i)) {
+                        hasOutput = true;
+                        break;
+                    }
+                }
+                // Esta es solo una advertencia, no un error cr√≠tico
+            }
+        }
 
+        return "";
+    }
+};
 
-        // Dibujar todos los cables guardados
-        for (const Cable &c : cables)
-        {
-            POINT p1 = GetPinPosition(placedGates[c.gateStart], c.pinStart);
-            POINT p2 = GetPinPosition(placedGates[c.gateEnd], c.pinEnd);
+// ============================================================================
+// FUNCIONES DE DIBUJO
+// ============================================================================
+void DrawAND(HDC hdc, int x, int y);
+void DrawOR(HDC hdc, int x, int y);
+void DrawXOR(HDC hdc, int x, int y);
+void DrawNOT(HDC hdc, int x, int y);
+void DrawNAND(HDC hdc, int x, int y);
+void DrawNOR(HDC hdc, int x, int y);
+void DrawXNOR(HDC hdc, int x, int y);
 
+void DrawSwitch(HDC hdc, const GateInstance& gate) {
+    COLORREF color = (gate.val_out == 1) ? RGB(0, 200, 0) : RGB(150, 150, 150);
+    GDIGuard brush(hdc, CreateSolidBrush(color));
+
+    Rectangle(hdc, gate.x, gate.y, gate.x + 40, gate.y + 30);
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(255, 255, 255));
+    const char* txt = (gate.val_out == 1) ? "ON" : "OFF";
+    TextOut(hdc, gate.x + 8, gate.y + 8, txt, static_cast<int>(strlen(txt)));
+
+    MoveToEx(hdc, gate.out.x, gate.out.y, NULL);
+    LineTo(hdc, gate.out.x + 15, gate.out.y);
+}
+
+void DrawLED(HDC hdc, const GateInstance& gate) {
+    COLORREF color = (gate.val_in1 == 1) ? RGB(0, 255, 0) : RGB(255, 0, 0);
+    GDIGuard brush(hdc, CreateSolidBrush(color));
+
+    Ellipse(hdc, gate.x, gate.y, gate.x + 30, gate.y + 30);
+
+    MoveToEx(hdc, gate.in1.x, gate.in1.y, NULL);
+    LineTo(hdc, gate.in1.x - 15, gate.in1.y);
+}
+
+void DrawGrid(HDC hdc, const RECT& clientRect) {
+    GDIGuard gridPen(hdc, CreatePen(PS_DOT, 1, RGB(220, 220, 220)));
+
+    for (int x = 0; x < clientRect.right; x += GRID_SIZE) {
+        MoveToEx(hdc, x, 0, NULL);
+        LineTo(hdc, x, clientRect.bottom);
+    }
+
+    for (int y = 0; y < clientRect.bottom; y += GRID_SIZE) {
+        MoveToEx(hdc, 0, y, NULL);
+        LineTo(hdc, clientRect.right, y);
+    }
+}
+
+// ============================================================================
+// CLASE PARA RENDERIZADO
+// ============================================================================
+class Renderer {
+public:
+    static void DrawCircuit(HDC hdc, const Circuit& circuit,
+                           bool showTempCable, const POINT& tempStart, const POINT& tempEnd) {
+        // Dibujar cables
+        for (const auto& cable : circuit.cables) {
+            if (cable.gateStart < 0 || cable.gateStart >= static_cast<int>(circuit.gates.size()) ||
+                cable.gateEnd < 0 || cable.gateEnd >= static_cast<int>(circuit.gates.size())) {
+                continue;
+            }
+
+            POINT p1 = circuit.GetPinPosition(circuit.gates[cable.gateStart], cable.pinStart);
+            POINT p2 = circuit.GetPinPosition(circuit.gates[cable.gateEnd], cable.pinEnd);
+
+            COLORREF color;
+            int width;
+
+            if (cable.value == 1) {
+                color = RGB(0, 150, 0);
+                width = 3;
+            } else if (cable.value == 0) {
+                color = RGB(150, 0, 0);
+                width = 3;
+            } else {
+                color = RGB(100, 100, 100);
+                width = 2;
+            }
+
+            GDIGuard cablePen(hdc, CreatePen(PS_SOLID, width, color));
             MoveToEx(hdc, p1.x, p1.y, NULL);
             LineTo(hdc, p2.x, p2.y);
         }
 
-        SelectObject(hdc, hOldPen);
-        DeleteObject(hPen);
-        EndPaint(hwndDlg, &ps);
+        // Dibujar cable temporal
+        if (showTempCable) {
+            GDIGuard tempPen(hdc, CreatePen(PS_DOT, 2, RGB(100, 100, 100)));
+            MoveToEx(hdc, tempStart.x, tempStart.y, NULL);
+            LineTo(hdc, tempEnd.x, tempEnd.y);
+        }
+
+        // Dibujar compuertas
+        for (const auto& gate : circuit.gates) {
+            // Dibujar selecci√≥n
+            if (gate.selected) {
+                GDIGuard selectPen(hdc, CreatePen(PS_SOLID, 3, RGB(0, 100, 255)));
+                HBRUSH nullBrush = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+                HBRUSH oldBrush = static_cast<HBRUSH>(SelectObject(hdc, nullBrush));
+
+                Rectangle(hdc, gate.x - 20, gate.y - 5, gate.x + 75, gate.y + 40);
+
+                SelectObject(hdc, oldBrush);
+            }
+
+            // Dibujar la compuerta
+            switch (gate.type) {
+                case GATE_AND: DrawAND(hdc, gate.x, gate.y); break;
+                case GATE_OR: DrawOR(hdc, gate.x, gate.y); break;
+                case GATE_XOR: DrawXOR(hdc, gate.x, gate.y); break;
+                case GATE_NOT: DrawNOT(hdc, gate.x, gate.y); break;
+                case GATE_NAND: DrawNAND(hdc, gate.x, gate.y); break;
+                case GATE_NOR: DrawNOR(hdc, gate.x, gate.y); break;
+                case GATE_XNOR: DrawXNOR(hdc, gate.x, gate.y); break;
+                case GATE_SWITCH: DrawSwitch(hdc, gate); break;
+                case GATE_LED: DrawLED(hdc, gate); break;
+            }
+
+            // Mostrar valor de salida
+            if (gate.type != GATE_LED && gate.type != GATE_SWITCH) {
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, RGB(0, 0, 200));
+                char buf[10];
+                sprintf(buf, "%d", gate.val_out);
+                TextOut(hdc, gate.out.x + 5, gate.out.y - 15, buf, static_cast<int>(strlen(buf)));
+            }
+        }
     }
-    return TRUE;
+};
 
-    case WM_LBUTTONDOWN:
-    {
-        int x = LOWORD(lParam);
-        int y = HIWORD(lParam);
+// ============================================================================
+// VARIABLES GLOBALES
+// ============================================================================
+HINSTANCE hInst;
+Circuit circuit;
+Mode currentMode = MODE_NORMAL;
+GateType selectedGate;
+bool cableDrawing = false;
+int startGateIndex = -1;
+int startPinIndex = -1;
+bool draggingGate = false;
+int draggedGateIndex = -1;
+int dragOffsetX = 0;
+int dragOffsetY = 0;
+POINT tempCableEnd;
+bool showTempCable = false;
 
-        int gateIndex = HitTestGate(x, y);
+// ============================================================================
+// PROCEDIMIENTO DEL DI√ÅLOGO PRINCIPAL
+// ============================================================================
+BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch(uMsg) {
+        case WM_INITDIALOG:
+            return TRUE;
 
-        if (gateIndex != -1)
-        {
-            GateInstance &g = placedGates[gateIndex];
+        case WM_CLOSE:
+            EndDialog(hwndDlg, 0);
+            return TRUE;
 
-            if (g.type == GATE_SWITCH)
-            {
-                g.val_out = (g.val_out == 1 ? 0 : 1); // toggle
-                PropagateSignals();
+        case WM_COMMAND: {
+            switch(LOWORD(wParam)) {
+                case ID_BTN_AND:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_AND;
+                    SetWindowText(hwndDlg, "Simulador - Colocando AND");
+                    break;
+
+                case ID_BTN_NAND:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_NAND;
+                    SetWindowText(hwndDlg, "Simulador - Colocando NAND");
+                    break;
+
+                case ID_BTN_OR:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_OR;
+                    SetWindowText(hwndDlg, "Simulador - Colocando OR");
+                    break;
+
+                case ID_BTN_NOR:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_NOR;
+                    SetWindowText(hwndDlg, "Simulador - Colocando NOR");
+                    break;
+
+                case ID_BTN_NOT:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_NOT;
+                    SetWindowText(hwndDlg, "Simulador - Colocando NOT");
+                    break;
+
+                case ID_BTN_XOR:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_XOR;
+                    SetWindowText(hwndDlg, "Simulador - Colocando XOR");
+                    break;
+
+                case ID_BTN_XNOR:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_XNOR;
+                    SetWindowText(hwndDlg, "Simulador - Colocando XNOR");
+                    break;
+
+                case ID_BTN_CABLE:
+                    currentMode = MODE_CABLE;
+                    cableDrawing = false;
+                    SetWindowText(hwndDlg, "Simulador - Modo Cable");
+                    break;
+
+                case ID_BTN_SWITCH:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_SWITCH;
+                    SetWindowText(hwndDlg, "Simulador - Colocando SWITCH");
+                    break;
+
+                case ID_BTN_LED:
+                    currentMode = MODE_PLACING;
+                    selectedGate = GATE_LED;
+                    SetWindowText(hwndDlg, "Simulador - Colocando LED");
+                    break;
+
+                case ID_BTN_DELETE:
+                    currentMode = MODE_DELETE;
+                    SetWindowText(hwndDlg, "Simulador - Modo Eliminar");
+                    break;
+
+                case ID_BTN_CLEAR:
+                    circuit.SaveState();
+                    circuit.Clear();
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                    SetWindowText(hwndDlg, "Simulador de Compuertas L√≥gicas");
+                    break;
+
+                case ID_BTN_EXIT:
+                    EndDialog(hwndDlg, 0);
+                    break;
+            }
+            return TRUE;
+        }
+
+        case WM_KEYDOWN: {
+            if (wParam == 'Z' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                if (circuit.Undo()) {
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                }
+            } else if (wParam == 'Y' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+                if (circuit.Redo()) {
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                }
+            } else if (wParam == VK_ESCAPE) {
+                currentMode = MODE_NORMAL;
+                cableDrawing = false;
+                showTempCable = false;
+                SetWindowText(hwndDlg, "Simulador de Compuertas L√≥gicas");
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            } else if (wParam == VK_DELETE) {
+                circuit.SaveState();
+
+                // Eliminar compuertas seleccionadas
+                for (int i = static_cast<int>(circuit.gates.size()) - 1; i >= 0; i--) {
+                    if (circuit.gates[i].selected) {
+                        // Eliminar cables conectados a esta compuerta
+                        for (int j = static_cast<int>(circuit.cables.size()) - 1; j >= 0; j--) {
+                            if (circuit.cables[j].gateStart == i || circuit.cables[j].gateEnd == i) {
+                                circuit.cables.erase(circuit.cables.begin() + j);
+                            }
+                        }
+                        circuit.gates.erase(circuit.gates.begin() + i);
+                    }
+                }
+
+                circuit.PropagateSignals();
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            }
+            return TRUE;
+        }
+
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwndDlg, &ps);
+
+            RECT clientRect;
+            GetClientRect(hwndDlg, &clientRect);
+
+            // Double buffering mejorado
+            HDC memDC = CreateCompatibleDC(hdc);
+            HBITMAP memBitmap = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);
+            HBITMAP oldBitmap = static_cast<HBITMAP>(SelectObject(memDC, memBitmap));
+
+            // Fondo
+            HBRUSH bgBrush = CreateSolidBrush(RGB(240, 240, 245));
+            FillRect(memDC, &clientRect, bgBrush);
+            DeleteObject(bgBrush);
+
+            // Cuadr√≠cula
+            DrawGrid(memDC, clientRect);
+
+            // Dibujar circuito
+            POINT tempStart = {0, 0};
+            if (showTempCable && cableDrawing && startGateIndex >= 0) {
+                tempStart = circuit.GetPinPosition(circuit.gates[startGateIndex], startPinIndex);
+            }
+
+            Renderer::DrawCircuit(memDC, circuit, showTempCable, tempStart, tempCableEnd);
+
+            // Copiar al HDC principal
+            BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, memDC, 0, 0, SRCCOPY);
+
+            // Limpiar
+            SelectObject(memDC, oldBitmap);
+            DeleteObject(memBitmap);
+            DeleteDC(memDC);
+
+            EndPaint(hwndDlg, &ps);
+            return TRUE;
+        }
+
+        case WM_LBUTTONDOWN: {
+            int x = LOWORD(lParam);
+            int y = HIWORD(lParam);
+
+            // Modo eliminar
+            if (currentMode == MODE_DELETE) {
+                int gateIdx = circuit.HitTestGate(x, y);
+                if (gateIdx != -1) {
+                    circuit.SaveState();
+
+                    // Eliminar cables conectados
+                    for (int i = static_cast<int>(circuit.cables.size()) - 1; i >= 0; i--) {
+                        if (circuit.cables[i].gateStart == gateIdx || circuit.cables[i].gateEnd == gateIdx) {
+                            circuit.cables.erase(circuit.cables.begin() + i);
+                        }
+                    }
+
+                    circuit.gates.erase(circuit.gates.begin() + gateIdx);
+                    circuit.PropagateSignals();
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                    return TRUE;
+                }
+
+                int cableIdx = circuit.HitTestCable(x, y);
+                if (cableIdx != -1) {
+                    circuit.SaveState();
+                    circuit.cables.erase(circuit.cables.begin() + cableIdx);
+                    circuit.PropagateSignals();
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                    return TRUE;
+                }
+                return TRUE;
+            }
+
+            // Modo colocar compuerta
+            if (currentMode == MODE_PLACING) {
+                circuit.SaveState();
+
+                GateInstance gate;
+                gate.type = selectedGate;
+                gate.x = x;
+                gate.y = y;
+
+                circuit.ComputePins(gate);
+                circuit.gates.push_back(gate);
+                circuit.PropagateSignals();
+
+                currentMode = MODE_NORMAL;
+                SetWindowText(hwndDlg, "Simulador de Compuertas L√≥gicas");
                 InvalidateRect(hwndDlg, NULL, TRUE);
                 return TRUE;
             }
 
-            draggingGate = true;
-            draggedGateIndex = gateIndex;
+            // Modo cable
+            if (currentMode == MODE_CABLE) {
+                if (!cableDrawing) {
+                    // Iniciar cable
+                    int gIndex, pIndex;
+                    POINT snapped;
 
-            // Guardar offset para que no salte
-            dragOffsetX = x - placedGates[gateIndex].x;
-            dragOffsetY = y - placedGates[gateIndex].y;
+                    if (circuit.SnapToPin(x, y, gIndex, pIndex, snapped)) {
+                        startGateIndex = gIndex;
+                        startPinIndex = pIndex;
+                        cableDrawing = true;
+                        showTempCable = true;
+                        tempCableEnd.x = x;
+                        tempCableEnd.y = y;
+                    }
+                    return TRUE;
+                } else {
+                    // Finalizar cable
+                    int gIndex, pIndex;
+                    POINT snapped;
 
-            return TRUE;
-        }
+                    if (circuit.SnapToPin(x, y, gIndex, pIndex, snapped)) {
+                        // Validar conexi√≥n
+                        if (circuit.IsValidConnection(startGateIndex, startPinIndex, gIndex, pIndex)) {
+                            circuit.SaveState();
 
-        if (placingGate)
-        {
-            int x = LOWORD(lParam);
-            int y = HIWORD(lParam);
+                            Cable cable;
+                            cable.gateStart = startGateIndex;
+                            cable.pinStart = startPinIndex;
+                            cable.gateEnd = gIndex;
+                            cable.pinEnd = pIndex;
 
-            GateInstance g;
-            g.type = selectedGate;
-            g.x = x;
-            g.y = y;
+                            circuit.cables.push_back(cable);
 
-            ComputePins(g);  // Calcular pines din·micamente
+                            if (circuit.DetectLoop()) {
+                                MessageBox(hwndDlg,
+                                    "Advertencia: Se detect√≥ un ciclo en el circuito.\n"
+                                    "Esto puede causar un comportamiento inestable.",
+                                    "Bucle Detectado",
+                                    MB_OK | MB_ICONWARNING);
+                            }
 
-            placedGates.push_back(g);
+                            circuit.PropagateSignals();
+                        } else {
+                            MessageBox(hwndDlg,
+                                "Conexi√≥n inv√°lida:\n"
+                                "- Las salidas solo pueden conectarse a entradas\n"
+                                "- No se puede conectar una entrada ya ocupada\n"
+                                "- No se pueden crear conexiones duplicadas",
+                                "Conexi√≥n Inv√°lida",
+                                MB_OK | MB_ICONEXCLAMATION);
+                        }
 
-            PropagateSignals();
-
-            placingGate = false;
-
-            InvalidateRect(hwndDlg, NULL, TRUE);
-            return TRUE;
-        }
-
-        if (!cableMode)
-            break;
-
-
-
-        POINT snapped;
-
-        if (!cableDrawing)
-        {
-            int gIndex, pIndex;
-            POINT snapped;
-
-            if (SnapToPin(x, y, gIndex, pIndex, snapped))
-            {
-                startGateIndex = gIndex;
-                startPinIndex = pIndex;
+                        cableDrawing = false;
+                        showTempCable = false;
+                        currentMode = MODE_NORMAL;
+                        SetWindowText(hwndDlg, "Simulador de Compuertas L√≥gicas");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                    }
+                    return TRUE;
+                }
             }
-            else
-            {
-                // clic inv·lido: no est· sobre un pin
+
+            // Modo normal - interacci√≥n con compuertas
+            int gateIndex = circuit.HitTestGate(x, y);
+            if (gateIndex != -1) {
+                GateInstance& gate = circuit.gates[gateIndex];
+
+                // Toggle switch
+                if (gate.type == GATE_SWITCH) {
+                    circuit.SaveState();
+                    gate.val_out = (gate.val_out == 1) ? 0 : 1;
+                    circuit.PropagateSignals();
+                    InvalidateRect(hwndDlg, NULL, TRUE);
+                    return TRUE;
+                }
+
+                // Iniciar arrastre
+                draggingGate = true;
+                draggedGateIndex = gateIndex;
+                dragOffsetX = x - circuit.gates[gateIndex].x;
+                dragOffsetY = y - circuit.gates[gateIndex].y;
                 return TRUE;
             }
 
-            cableDrawing = true;
             return TRUE;
         }
 
-        else
-        {
-            int gIndex, pIndex;
-            POINT snapped;
+        case WM_MOUSEMOVE: {
+            // Actualizar cable temporal
+            if (showTempCable && cableDrawing) {
+                tempCableEnd.x = LOWORD(lParam);
+                tempCableEnd.y = HIWORD(lParam);
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            }
 
-            if (!SnapToPin(x, y, gIndex, pIndex, snapped))
-                return TRUE; // clic inv·lido
+            // Arrastrar compuerta
+            if (draggingGate && draggedGateIndex >= 0) {
+                int mx = LOWORD(lParam);
+                int my = HIWORD(lParam);
 
-            Cable c;
-            c.gateStart = startGateIndex;
-            c.pinStart = startPinIndex;
-            c.gateEnd = gIndex;
-            c.pinEnd = pIndex;
+                GateInstance& gate = circuit.gates[draggedGateIndex];
+                gate.x = mx - dragOffsetX;
+                gate.y = my - dragOffsetY;
 
-            cables.push_back(c);
+                circuit.ComputePins(gate);
+                circuit.PropagateSignals();
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            }
 
-            PropagateSignals();
-
-            cableDrawing = false;
-            cableMode = false;
-
-            InvalidateRect(hwndDlg, NULL, TRUE);
             return TRUE;
         }
-    }
-    return TRUE;
 
-    case WM_MOUSEMOVE:
-    {
-        if (draggingGate)
-        {
-            int mx = LOWORD(lParam);
-            int my = HIWORD(lParam);
-
-            GateInstance &g = placedGates[draggedGateIndex];
-
-            // Nueva posiciÛn
-            g.x = mx - dragOffsetX;
-            g.y = my - dragOffsetY;
-
-            // Recalcular pines
-            ComputePins(g);
-
-            PropagateSignals();
-
-            // Redibujar
-            InvalidateRect(hwndDlg, NULL, TRUE);
-        }
-    }
-    return TRUE;
-
-    case WM_LBUTTONUP:
-    {
-        if (draggingGate)
-        {
-            draggingGate = false;
-            draggedGateIndex = -1;
+        case WM_LBUTTONUP: {
+            if (draggingGate) {
+                draggingGate = false;
+                draggedGateIndex = -1;
+                return TRUE;
+            }
             return TRUE;
         }
-    }
-    break;
-
     }
     return FALSE;
 }
 
-
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
-{
-    hInst=hInstance;
+// ============================================================================
+// PUNTO DE ENTRADA
+// ============================================================================
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                     LPSTR lpCmdLine, int nShowCmd) {
+    hInst = hInstance;
     InitCommonControls();
     return DialogBox(hInst, MAKEINTRESOURCE(DLG_MAIN), NULL, (DLGPROC)DlgMain);
 }
 
-void DrawAND(HDC hdc, int x, int y)
-{
+// ============================================================================
+// IMPLEMENTACI√ìN DE FUNCIONES DE DIBUJO
+// ============================================================================
+void DrawAND(HDC hdc, int x, int y) {
     MoveToEx(hdc, x, y, NULL);
     LineTo(hdc, x + 30, y);
-
     MoveToEx(hdc, x, y, NULL);
     LineTo(hdc, x, y + 30);
-
     MoveToEx(hdc, x, y + 30, NULL);
     LineTo(hdc, x + 30, y + 30);
-
-    // SemicÌrculo derecho
     Arc(hdc, x + 15, y, x + 45, y + 30, x + 30, y + 30, x + 30, y);
 
-    // Entradas
     MoveToEx(hdc, x - 15, y + 10, NULL);
     LineTo(hdc, x, y + 10);
-
     MoveToEx(hdc, x - 15, y + 20, NULL);
     LineTo(hdc, x, y + 20);
-
-    // Salida
     MoveToEx(hdc, x + 45, y + 15, NULL);
     LineTo(hdc, x + 60, y + 15);
 }
 
-void DrawOR(HDC hdc, int x, int y)
-{
-
+void DrawOR(HDC hdc, int x, int y) {
     MoveToEx(hdc, x, y, NULL);
     LineTo(hdc, x + 30, y);
-
     MoveToEx(hdc, x, y + 30, NULL);
     LineTo(hdc, x + 30, y + 30);
 
-    // SemicÌrculo izquierdo
     Arc(hdc, x - 10, y, x + 10, y + 30, x, y + 30, x, y);
-
-    // SemicÌrculo derecho
     Arc(hdc, x + 15, y, x + 45, y + 30, x + 30, y + 30, x + 30, y);
 
-    // Entradas
     MoveToEx(hdc, x - 10, y + 10, NULL);
     LineTo(hdc, x + 7, y + 10);
-
     MoveToEx(hdc, x - 10, y + 20, NULL);
     LineTo(hdc, x + 7, y + 20);
-
-    // Salida
     MoveToEx(hdc, x + 45, y + 15, NULL);
     LineTo(hdc, x + 60, y + 15);
 }
 
-void DrawXOR(HDC hdc, int x, int y)
-{
+void DrawXOR(HDC hdc, int x, int y) {
     DrawOR(hdc, x, y);
-
-    // SemicÌrculo izquierdo
     Arc(hdc, x - 17, y, x + 3, y + 30, x - 6, y + 30, x - 6, y);
-
 }
 
-void DrawNOT(HDC hdc, int x, int y)
-{
-    // Tri·ngulo
+void DrawNOT(HDC hdc, int x, int y) {
     MoveToEx(hdc, x, y, NULL);
     LineTo(hdc, x, y + 30);
     LineTo(hdc, x + 30, y + 15);
     LineTo(hdc, x, y);
 
-    // CÌrculo de negaciÛn
     Ellipse(hdc, x + 30, y + 12, x + 36, y + 18);
 
-    // Entrada
     MoveToEx(hdc, x - 15, y + 15, NULL);
     LineTo(hdc, x, y + 15);
-
-    // Salida
     MoveToEx(hdc, x + 36, y + 15, NULL);
     LineTo(hdc, x + 50, y + 15);
 }
 
-void DrawNAND(HDC hdc, int x, int y)
-{
+void DrawNAND(HDC hdc, int x, int y) {
     DrawAND(hdc, x, y);
-
-    // CÌrculo de negaciÛn
     Ellipse(hdc, x + 45, y + 12, x + 51, y + 18);
-
-    // Salida corregida
     MoveToEx(hdc, x + 51, y + 15, NULL);
     LineTo(hdc, x + 65, y + 15);
 }
 
-void DrawNOR(HDC hdc, int x, int y)
-{
+void DrawNOR(HDC hdc, int x, int y) {
     DrawOR(hdc, x, y);
-
-    // CÌrculo de negaciÛn
     Ellipse(hdc, x + 45, y + 12, x + 51, y + 18);
-
-    // Salida corregida
     MoveToEx(hdc, x + 51, y + 15, NULL);
     LineTo(hdc, x + 65, y + 15);
 }
 
-void DrawXNOR(HDC hdc, int x, int y)
-{
+void DrawXNOR(HDC hdc, int x, int y) {
     DrawXOR(hdc, x, y);
-
-    // CÌrculo de negaciÛn
     Ellipse(hdc, x + 45, y + 12, x + 51, y + 18);
-
-    // Salida corregida
     MoveToEx(hdc, x + 51, y + 15, NULL);
     LineTo(hdc, x + 65, y + 15);
 }
