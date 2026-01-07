@@ -4,15 +4,15 @@
 #include <vector>
 #include <algorithm>
 #include <set>
-#include <queue>
 #include <cmath>
 #include <string>
-#include <memory>
 #include "resource.h"
 
-// ============================================================================
+
+using namespace std;
+
 // CONSTANTES Y CONFIGURACIÓN
-// ============================================================================
+
 constexpr int MAX_UNDO_STACK = 50;
 constexpr int PIN_SNAP_DISTANCE = 100;
 constexpr int GATE_WIDTH = 70;
@@ -20,9 +20,7 @@ constexpr int GATE_HEIGHT = 35;
 constexpr int GRID_SIZE = 20;
 constexpr int CABLE_HIT_DISTANCE = 5;
 
-// ============================================================================
 // ENUMERACIONES
-// ============================================================================
 enum GateType {
     GATE_AND,
     GATE_OR,
@@ -48,9 +46,9 @@ enum PinType {
     PIN_OUTPUT = 2
 };
 
-// ============================================================================
+
 // CLASE PARA GESTIÓN AUTOMÁTICA DE RECURSOS GDI
-// ============================================================================
+
 class GDIGuard {
 private:
     HDC hdc;
@@ -76,9 +74,9 @@ public:
     GDIGuard& operator=(const GDIGuard&) = delete;
 };
 
-// ============================================================================
+
 // ESTRUCTURAS
-// ============================================================================
+
 struct GateInstance {
     GateType type;
     int x;
@@ -128,19 +126,19 @@ struct Cable {
 };
 
 struct HistoryState {
-    std::vector<GateInstance> gates;
-    std::vector<Cable> cables;
+    vector<GateInstance> gates;
+    vector<Cable> cables;
 };
 
-// ============================================================================
+
 // CLASE PRINCIPAL DEL CIRCUITO
-// ============================================================================
+
 class Circuit {
 public:
-    std::vector<GateInstance> gates;
-    std::vector<Cable> cables;
-    std::vector<HistoryState> undoStack;
-    std::vector<HistoryState> redoStack;
+    vector<GateInstance> gates;
+    vector<Cable> cables;
+    vector<HistoryState> undoStack;
+    vector<HistoryState> redoStack;
 
     void SaveState() {
         HistoryState state;
@@ -284,18 +282,18 @@ public:
     }
 
     bool DetectLoop() const {
-        std::vector<std::set<int>> graph(gates.size());
+        vector<set<int>> graph(gates.size());
 
         for (const auto& cable : cables) {
             graph[cable.gateStart].insert(cable.gateEnd);
         }
 
-        std::vector<int> color(gates.size(), 0);
+        vector<int> color(gates.size(), 0);
 
         for (size_t start = 0; start < gates.size(); start++) {
             if (color[start] != 0) continue;
 
-            std::vector<int> stack;
+            vector<int> stack;
             stack.push_back(static_cast<int>(start));
 
             while (!stack.empty()) {
@@ -495,7 +493,7 @@ public:
             if (len < 1) continue;
 
             float t = ((mx - p1.x) * dx + (my - p1.y) * dy) / (len * len);
-            t = std::max(0.0f, std::min(1.0f, t));
+            t = max(0.0f, min(1.0f, t));
 
             float projX = p1.x + t * dx;
             float projY = p1.y + t * dy;
@@ -517,7 +515,7 @@ public:
         InvalidateRect(hwnd, &rect, FALSE);
     }
 
-    std::string ValidateCircuit() const {
+    string ValidateCircuit() const {
         // Verificar LEDs sin entrada
         for (size_t i = 0; i < gates.size(); i++) {
             if (gates[i].type == GATE_LED) {
@@ -552,9 +550,9 @@ public:
     }
 };
 
-// ============================================================================
+
 // FUNCIONES DE DIBUJO
-// ============================================================================
+
 void DrawAND(HDC hdc, int x, int y);
 void DrawOR(HDC hdc, int x, int y);
 void DrawXOR(HDC hdc, int x, int y);
@@ -602,9 +600,9 @@ void DrawGrid(HDC hdc, const RECT& clientRect) {
     }
 }
 
-// ============================================================================
+
 // CLASE PARA RENDERIZADO
-// ============================================================================
+
 class Renderer {
 public:
     static void DrawCircuit(HDC hdc, const Circuit& circuit,
@@ -683,9 +681,9 @@ public:
     }
 };
 
-// ============================================================================
+
 // VARIABLES GLOBALES
-// ============================================================================
+
 HINSTANCE hInst;
 Circuit circuit;
 Mode currentMode = MODE_NORMAL;
@@ -700,9 +698,9 @@ int dragOffsetY = 0;
 POINT tempCableEnd;
 bool showTempCable = false;
 
-// ============================================================================
+
 // PROCEDIMIENTO DEL DIÁLOGO PRINCIPAL
-// ============================================================================
+
 BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
         case WM_INITDIALOG:
@@ -1048,9 +1046,9 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return FALSE;
 }
 
-// ============================================================================
+
 // PUNTO DE ENTRADA
-// ============================================================================
+
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                      LPSTR lpCmdLine, int nShowCmd) {
     hInst = hInstance;
@@ -1058,9 +1056,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     return DialogBox(hInst, MAKEINTRESOURCE(DLG_MAIN), NULL, (DLGPROC)DlgMain);
 }
 
-// ============================================================================
+
 // IMPLEMENTACIÓN DE FUNCIONES DE DIBUJO
-// ============================================================================
+
 void DrawAND(HDC hdc, int x, int y) {
     MoveToEx(hdc, x, y, NULL);
     LineTo(hdc, x + 30, y);

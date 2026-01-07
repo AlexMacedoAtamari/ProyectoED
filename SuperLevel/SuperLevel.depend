@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1767799396 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+	<windows.h>
+	<commctrl.h>
+	<richedit.h>
+	"resource.h"
+
+1767799396 e:\codeblocks\proyectoed\superlevel\resource.h
+
