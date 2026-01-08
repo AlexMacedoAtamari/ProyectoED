@@ -564,45 +564,9 @@ void DrawNAND(HDC hdc, int x, int y);
 void DrawNOR(HDC hdc, int x, int y);
 void DrawXNOR(HDC hdc, int x, int y);
 
-void DrawSwitch(HDC hdc, const GateInstance& gate) {
-    COLORREF color = (gate.val_out == 1) ? RGB(0, 200, 0) : RGB(150, 150, 150);
-    GDIGuard brush(hdc, CreateSolidBrush(color));
-
-    Rectangle(hdc, gate.x, gate.y, gate.x + 40, gate.y + 30);
-
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(255, 255, 255));
-    const char* txt = (gate.val_out == 1) ? "ON" : "OFF";
-    TextOut(hdc, gate.x + 8, gate.y + 8, txt, static_cast<int>(strlen(txt)));
-
-    MoveToEx(hdc, gate.out.x, gate.out.y, NULL);
-    LineTo(hdc, gate.out.x - 15, gate.out.y);
-}
-
-void DrawLED(HDC hdc, const GateInstance& gate) {
-    COLORREF color = (gate.val_in1 == 1) ? RGB(0, 255, 0) : RGB(255, 0, 0);
-    GDIGuard brush(hdc, CreateSolidBrush(color));
-
-    Ellipse(hdc, gate.x, gate.y, gate.x + 30, gate.y + 30);
-
-    MoveToEx(hdc, gate.in1.x + 15, gate.in1.y, NULL);
-    LineTo(hdc, gate.in1.x, gate.in1.y);
-}
-
-void DrawGrid(HDC hdc, const RECT& clientRect) {
-    GDIGuard gridPen(hdc, CreatePen(PS_DOT, 1, RGB(220, 220, 220)));
-
-    for (int x = 0; x < clientRect.right; x += GRID_SIZE) {
-        MoveToEx(hdc, x, 0, NULL);
-        LineTo(hdc, x, clientRect.bottom);
-    }
-
-    for (int y = 0; y < clientRect.bottom; y += GRID_SIZE) {
-        MoveToEx(hdc, 0, y, NULL);
-        LineTo(hdc, clientRect.right, y);
-    }
-}
-
+void DrawSwitch(HDC hdc, const GateInstance& gate);
+void DrawLED(HDC hdc, const GateInstance& gate);
+void DrawGrid(HDC hdc, const RECT& clientRect);
 
 // CLASE PARA RENDERIZADO
 
@@ -1134,4 +1098,43 @@ void DrawXNOR(HDC hdc, int x, int y) {
     Ellipse(hdc, x + 45, y + 12, x + 51, y + 18);
     MoveToEx(hdc, x + 51, y + 15, NULL);
     LineTo(hdc, x + 65, y + 15);
+}
+
+void DrawSwitch(HDC hdc, const GateInstance& gate) {
+    COLORREF color = (gate.val_out == 1) ? RGB(0, 200, 0) : RGB(150, 150, 150);
+    GDIGuard brush(hdc, CreateSolidBrush(color));
+
+    Rectangle(hdc, gate.x, gate.y, gate.x + 40, gate.y + 30);
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(255, 255, 255));
+    const char* txt = (gate.val_out == 1) ? "ON" : "OFF";
+    TextOut(hdc, gate.x + 8, gate.y + 8, txt, static_cast<int>(strlen(txt)));
+
+    MoveToEx(hdc, gate.out.x, gate.out.y, NULL);
+    LineTo(hdc, gate.out.x - 15, gate.out.y);
+}
+
+void DrawLED(HDC hdc, const GateInstance& gate) {
+    COLORREF color = (gate.val_in1 == 1) ? RGB(0, 255, 0) : RGB(255, 0, 0);
+    GDIGuard brush(hdc, CreateSolidBrush(color));
+
+    Ellipse(hdc, gate.x, gate.y, gate.x + 30, gate.y + 30);
+
+    MoveToEx(hdc, gate.in1.x + 15, gate.in1.y, NULL);
+    LineTo(hdc, gate.in1.x, gate.in1.y);
+}
+
+void DrawGrid(HDC hdc, const RECT& clientRect) {
+    GDIGuard gridPen(hdc, CreatePen(PS_DOT, 1, RGB(220, 220, 220)));
+
+    for (int x = 0; x < clientRect.right; x += GRID_SIZE) {
+        MoveToEx(hdc, x, 0, NULL);
+        LineTo(hdc, x, clientRect.bottom);
+    }
+
+    for (int y = 0; y < clientRect.bottom; y += GRID_SIZE) {
+        MoveToEx(hdc, 0, y, NULL);
+        LineTo(hdc, clientRect.right, y);
+    }
 }

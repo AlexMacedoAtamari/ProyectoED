@@ -1,13 +1,13 @@
 # depslib dependency file v1.0
-1767828127 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+1767850784 source:e:\codeblocks\proyectoed\superlevel\resource.rc
 	<windows.h>
 	<commctrl.h>
 	<richedit.h>
 	"resource.h"
 
-1767799396 e:\codeblocks\proyectoed\superlevel\resource.h
+1767850312 e:\codeblocks\proyectoed\superlevel\resource.h
 
-1767847890 source:e:\codeblocks\proyectoed\superlevel\main.cpp
+1767850312 source:e:\codeblocks\proyectoed\superlevel\main.cpp
 	<windows.h>
 	<commctrl.h>
 	<stdio.h>
