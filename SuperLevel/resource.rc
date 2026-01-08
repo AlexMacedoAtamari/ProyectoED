@@ -12,19 +12,19 @@
 LANGUAGE 0, SUBLANG_NEUTRAL
 DLG_MAIN DIALOG 0, 0, 1000, 600
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
-CAPTION "Simulador de Compuertas Lógicas - Mejorado"
+CAPTION "Simulador de Compuertas Logicas - Mejorado"
 FONT 8, "Ms Shell Dlg"
 BEGIN
-    GROUPBOX        "Compuertas Básicas", -1, 10, 5, 370, 45
+    GROUPBOX        "Compuertas Basicas", -1, 10, 5, 370, 45
     PUSHBUTTON      "AND",   ID_BTN_AND,   20, 20, 50, 25
     PUSHBUTTON      "NAND",  ID_BTN_NAND,  80, 20, 50, 25
     PUSHBUTTON      "OR",    ID_BTN_OR,   140, 20, 50, 25
     PUSHBUTTON      "NOR",   ID_BTN_NOR,  200, 20, 50, 25
     PUSHBUTTON      "NOT",   ID_BTN_NOT,  260, 20, 50, 25
     PUSHBUTTON      "XOR",   ID_BTN_XOR,  320, 20, 50, 25
+    PUSHBUTTON      "XNOR",  ID_BTN_XNOR,   400, 20, 50, 25
 
     GROUPBOX        "Componentes", -1, 390, 5, 240, 45
-    PUSHBUTTON      "XNOR",   ID_BTN_XNOR,   400, 20, 50, 25
     PUSHBUTTON      "SWITCH", ID_BTN_SWITCH, 460, 20, 50, 25
     PUSHBUTTON      "LED",    ID_BTN_LED,    520, 20, 50, 25
     PUSHBUTTON      "Cable",  ID_BTN_CABLE,  580, 20, 50, 25
@@ -34,7 +34,7 @@ BEGIN
     PUSHBUTTON      "Limpiar",  ID_BTN_CLEAR,  720, 20, 60, 25
     PUSHBUTTON      "Salir",    ID_BTN_EXIT,   790, 20, 60, 25
 
-    LTEXT           "Área de Trabajo - Coloque componentes y conéctelos con cables", -1, 10, 55, 350, 10
+    LTEXT           "Area de Trabajo - Coloque componentes y conectelos con cables", -1, 10, 55, 350, 10
     LTEXT           "Atajos: Ctrl+Z (Deshacer) | Ctrl+Y (Rehacer) | ESC (Cancelar) | DEL (Borrar)", -1, 10, 70, 500, 10
 END
 

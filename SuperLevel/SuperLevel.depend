@@ -1,9 +1,35 @@
 # depslib dependency file v1.0
-1767799396 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+1767828127 source:e:\codeblocks\proyectoed\superlevel\resource.rc
 	<windows.h>
 	<commctrl.h>
 	<richedit.h>
 	"resource.h"
 
 1767799396 e:\codeblocks\proyectoed\superlevel\resource.h
+
+1767847890 source:e:\codeblocks\proyectoed\superlevel\main.cpp
+	<windows.h>
+	<commctrl.h>
+	<stdio.h>
+	<vector>
+	<algorithm>
+	<set>
+	<cmath>
+	<string>
+	"resource.h"
+
+1767825112 source:e:\codeblocks\proyectoed\superlevel\circuit.cpp
+	"Circuit.h"
+
+1767825507 e:\codeblocks\proyectoed\superlevel\circuit.h
+
+1767824049 source:e:\codeblocks\proyectoed\superlevel\gatesdraw.cpp
+	"GatesDraw.h"
+
+1767824049 e:\codeblocks\proyectoed\superlevel\gatesdraw.h
+
+1767824049 source:e:\codeblocks\proyectoed\superlevel\renderer.cpp
+	"Renderer.h"
+
+1767824049 e:\codeblocks\proyectoed\superlevel\renderer.h
 

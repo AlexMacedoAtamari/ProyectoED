@@ -223,11 +223,11 @@ public:
             case GATE_SWITCH:
                 gate.in1.x = 0; gate.in1.y = 0;
                 gate.in2.x = 0; gate.in2.y = 0;
-                gate.out.x = gate.x + 40; gate.out.y = gate.y + 15;
+                gate.out.x = gate.x + 55; gate.out.y = gate.y + 15;
                 break;
 
             case GATE_LED:
-                gate.in1.x = gate.x - 10; gate.in1.y = gate.y + 15;
+                gate.in1.x = gate.x - 15; gate.in1.y = gate.y + 15;
                 gate.in2.x = 0; gate.in2.y = 0;
                 gate.out.x = 0; gate.out.y = 0;
                 break;
@@ -244,38 +244,41 @@ public:
         return p;
     }
 
-    bool IsValidConnection(int startGate, int startPin, int endGate, int endPin) const {
+    bool IsValidConnection(int gateA, int pinA, int gateB, int pinB) const {
+
         // No conectar consigo mismo
-        if (startGate == endGate) return false;
+        if (gateA == gateB) return false;
 
-        // Validar que el pin de inicio sea una salida
-        if (startPin != PIN_OUTPUT) return false;
+        // Identificar roles: salida - entrada
+        bool aIsOutput = (pinA == PIN_OUTPUT);
+        bool bIsOutput = (pinB == PIN_OUTPUT);
 
-        // Validar que el pin final sea una entrada
-        if (endPin == PIN_OUTPUT) return false;
+        // Debe haber exactamente una salida y una entrada
+        if (aIsOutput == bIsOutput) return false; // ambos salida o ambos entrada → inválido
 
-        // El LED solo puede conectarse a entrada 1
+        int startGate = aIsOutput ? gateA : gateB;
+        int startPin  = aIsOutput ? pinA  : pinB;
+        int endGate   = aIsOutput ? gateB : gateA;
+        int endPin    = aIsOutput ? pinB  : pinA;
+
+        // LED solo acepta entrada 1
         if (gates[endGate].type == GATE_LED && endPin != PIN_INPUT1) return false;
-
-        // SWITCH solo puede conectar desde su salida
-        if (gates[startGate].type == GATE_SWITCH && startPin != PIN_OUTPUT) return false;
 
         // LED no tiene salida
         if (gates[startGate].type == GATE_LED) return false;
 
+        // SWITCH solo puede conectar desde su salida
+        if (gates[startGate].type == GATE_SWITCH && startPin != PIN_OUTPUT) return false;
+
         // Verificar que la entrada no esté ya conectada
         for (const auto& cable : cables) {
-            if (cable.gateEnd == endGate && cable.pinEnd == endPin) {
-                return false; // Ya hay una conexión en esta entrada
-            }
+            if (cable.gateEnd == endGate && cable.pinEnd == endPin) return false;
         }
 
         // Verificar que no exista ya esta conexión exacta
         for (const auto& cable : cables) {
             if (cable.gateStart == startGate && cable.pinStart == startPin &&
-                cable.gateEnd == endGate && cable.pinEnd == endPin) {
-                return false;
-            }
+                cable.gateEnd == endGate && cable.pinEnd == endPin) return false;
         }
 
         return true;
@@ -573,7 +576,7 @@ void DrawSwitch(HDC hdc, const GateInstance& gate) {
     TextOut(hdc, gate.x + 8, gate.y + 8, txt, static_cast<int>(strlen(txt)));
 
     MoveToEx(hdc, gate.out.x, gate.out.y, NULL);
-    LineTo(hdc, gate.out.x + 15, gate.out.y);
+    LineTo(hdc, gate.out.x - 15, gate.out.y);
 }
 
 void DrawLED(HDC hdc, const GateInstance& gate) {
@@ -582,8 +585,8 @@ void DrawLED(HDC hdc, const GateInstance& gate) {
 
     Ellipse(hdc, gate.x, gate.y, gate.x + 30, gate.y + 30);
 
-    MoveToEx(hdc, gate.in1.x, gate.in1.y, NULL);
-    LineTo(hdc, gate.in1.x - 15, gate.in1.y);
+    MoveToEx(hdc, gate.in1.x + 15, gate.in1.y, NULL);
+    LineTo(hdc, gate.in1.x, gate.in1.y);
 }
 
 void DrawGrid(HDC hdc, const RECT& clientRect) {
@@ -957,7 +960,7 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
                             if (circuit.DetectLoop()) {
                                 MessageBox(hwndDlg,
-                                    "Advertencia: Se detectó un ciclo en el circuito.\n"
+                                    "Advertencia: Se detecto un ciclo en el circuito.\n"
                                     "Esto puede causar un comportamiento inestable.",
                                     "Bucle Detectado",
                                     MB_OK | MB_ICONWARNING);
@@ -966,18 +969,18 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                             circuit.PropagateSignals();
                         } else {
                             MessageBox(hwndDlg,
-                                "Conexión inválida:\n"
+                                "Conexion invalida:\n"
                                 "- Las salidas solo pueden conectarse a entradas\n"
                                 "- No se puede conectar una entrada ya ocupada\n"
                                 "- No se pueden crear conexiones duplicadas",
-                                "Conexión Inválida",
+                                "Conexion Invalida",
                                 MB_OK | MB_ICONEXCLAMATION);
                         }
 
                         cableDrawing = false;
                         showTempCable = false;
                         currentMode = MODE_NORMAL;
-                        SetWindowText(hwndDlg, "Simulador de Compuertas Lógicas");
+                        SetWindowText(hwndDlg, "Simulador de Compuertas Logicas");
                         InvalidateRect(hwndDlg, NULL, TRUE);
                     }
                     return TRUE;
