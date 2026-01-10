@@ -23,3 +23,10 @@
 #define ID_BTN_DELETE          300
 #define ID_BTN_CLEAR           301
 #define ID_BTN_EXIT            302
+
+
+#define ID_MENU_SIMULATOR      3000
+#define ID_MENU_MATH           3001
+#define ID_MENU_TREES          3002
+
+#define DLG_SIMULATOR          1010

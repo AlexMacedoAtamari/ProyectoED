@@ -33,6 +33,7 @@ enum GateType {
     GATE_LED
 };
 
+
 enum Mode {
     MODE_NORMAL,
     MODE_PLACING,
@@ -666,9 +667,11 @@ POINT tempCableEnd;
 bool showTempCable = false;
 
 
+INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
+
 // PROCEDIMIENTO DEL DIÁLOGO PRINCIPAL
 
-BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
         case WM_INITDIALOG:
             return TRUE;
@@ -679,6 +682,48 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
         case WM_COMMAND: {
             switch(LOWORD(wParam)) {
+
+                case ID_MENU_SIMULATOR:
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_SIMULATOR),
+                        hwndDlg,
+                        DlgSimulator);
+
+                    return TRUE;
+
+                case ID_MENU_MATH:
+                    MessageBox(hwndDlg,
+                        "Módulo de matemáticas aún no implementado",
+                        "Información",
+                        MB_OK | MB_ICONINFORMATION);
+                    return TRUE;
+
+                case ID_MENU_TREES:
+                    MessageBox(hwndDlg,
+                        "Módulo de árboles y grafos aún no implementado",
+                        "Información",
+                        MB_OK | MB_ICONINFORMATION);
+            }
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+INT_PTR CALLBACK DlgSimulator(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch(uMsg) {
+        case WM_INITDIALOG:
+            circuit.Clear();
+            currentMode = MODE_NORMAL;
+            return TRUE;
+
+        case WM_CLOSE:
+            EndDialog(hwndDlg, 0);
+            return TRUE;
+
+        case WM_COMMAND: {
+            switch(LOWORD(wParam)) {
+
                 case ID_BTN_AND:
                     currentMode = MODE_PLACING;
                     selectedGate = GATE_AND;
@@ -796,6 +841,7 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_PAINT: {
+
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwndDlg, &ps);
 
@@ -836,6 +882,7 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_LBUTTONDOWN: {
+
             int x = LOWORD(lParam);
             int y = HIWORD(lParam);
 
@@ -977,6 +1024,7 @@ BOOL CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_MOUSEMOVE: {
+
             // Actualizar cable temporal
             if (showTempCable && cableDrawing) {
                 tempCableEnd.x = LOWORD(lParam);
@@ -1020,7 +1068,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                      LPSTR lpCmdLine, int nShowCmd) {
     hInst = hInstance;
     InitCommonControls();
-    return DialogBox(hInst, MAKEINTRESOURCE(DLG_MAIN), NULL, (DLGPROC)DlgMain);
+    return DialogBox(hInst, MAKEINTRESOURCE(DLG_MAIN), NULL, DlgMain);
 }
 
 

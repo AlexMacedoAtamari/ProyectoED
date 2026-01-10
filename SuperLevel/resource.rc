@@ -12,6 +12,16 @@
 LANGUAGE 0, SUBLANG_NEUTRAL
 DLG_MAIN DIALOG 0, 0, 1000, 600
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
+MENU IDR_MAINMENU
+CAPTION "Simulador de Compuertas Logicas - Mejorado"
+FONT 8, "Ms Shell Dlg"
+BEGIN
+
+
+END
+
+DLG_SIMULATOR DIALOG 0, 0, 1000, 600
+STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
 CAPTION "Simulador de Compuertas Logicas - Mejorado"
 FONT 8, "Ms Shell Dlg"
 BEGIN
@@ -37,6 +47,17 @@ BEGIN
     LTEXT           "Area de Trabajo - Coloque componentes y conectelos con cables", -1, 10, 55, 350, 10
 
 END
+
+IDR_MAINMENU MENU
+BEGIN
+    POPUP "Modo"
+    BEGIN
+        MENUITEM "Simulador",            ID_MENU_SIMULATOR
+        MENUITEM "Operaciones matemáticas", ID_MENU_MATH
+        MENUITEM "Árboles y grafos",     ID_MENU_TREES
+    END
+END
+
 
 //
 // Manifest resources
