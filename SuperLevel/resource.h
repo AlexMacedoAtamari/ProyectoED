@@ -20,21 +20,14 @@
 #define ID_BTN_CLEAR 301
 #define ID_BTN_EXIT 302
 
-#define ID_MENU_SIMULATOR 3000
-#define ID_MENU_MATH 3001
-#define ID_MENU_TREES 3002
-
-<<<<<<< Updated upstream
-#define DLG_SIMULATOR 1010
-
 #define DLG_MATH 1011
 
 #define IDC_MATH_NUMERO 4000
 #define IDC_MATH_BASE_ORIGEN 4001
-#define IDC_MATH_BASE_DESTINO 4002
+#define IDC_MATH_BASE_DESTINO 406
 #define IDC_MATH_CONVERTIR 4003
 #define IDC_MATH_RESULTADO_CONV 4004
-#define IDC_MATH_RESOLUCION 4005
+#define IDC_MATH_RESOLUCION 407
 
 #define IDC_MATH_N 4006
 #define IDC_MATH_K 4007
@@ -65,7 +58,7 @@
 #define ID_BTN_GRAPH_PRIM      5015
 #define ID_BTN_GRAPH_KRUSKAL   5016
 #define ID_BTN_GRAPH_RESET     5017
-=======
+
 #define ID_MENU_SIMULATOR      3000
 #define ID_MENU_KARNAUGH       3001
 #define ID_MENU_MATH           3002
@@ -78,8 +71,3 @@
 
 #define ID_BTN_SIMPLIFICAR     4002
 #define ID_BTN_SEND_SIMULATOR  4005
-
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes

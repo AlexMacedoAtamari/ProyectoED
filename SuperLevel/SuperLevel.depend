@@ -1,27 +1,21 @@
 # depslib dependency file v1.0
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-1768098953 source:e:\codeblocks\proyectoed\superlevel\resource.rc
-=======
-1768096041 source:e:\codeblocks\proyectoed\superlevel\resource.rc
->>>>>>> Stashed changes
-=======
-1768096041 source:e:\codeblocks\proyectoed\superlevel\resource.rc
->>>>>>> Stashed changes
+2516323339504 <<<<<<< Updated upstream
+
+1768103884 source:e:\codeblocks\proyectoed\superlevel\resource.rc
 	<windows.h>
 	<commctrl.h>
 	<richedit.h>
 	"resource.h"
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-1768098953 e:\codeblocks\proyectoed\superlevel\resource.h
-=======
-1768095847 e:\codeblocks\proyectoed\superlevel\resource.h
->>>>>>> Stashed changes
-=======
-1768095847 e:\codeblocks\proyectoed\superlevel\resource.h
->>>>>>> Stashed changes
+1768095847 shed changes
+	<windows.h>
+	<commctrl.h>
+	<richedit.h>
+	"resource.h"
+
+1768096041 ated upstream
+
+1768104316 e:\codeblocks\proyectoed\superlevel\resource.h
 
 1768095847 source:e:\codeblocks\proyectoed\superlevel\main.cpp
 	<windows.h>

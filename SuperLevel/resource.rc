@@ -4,18 +4,9 @@
 #include "resource.h"
 
 LANGUAGE 0, SUBLANG_NEUTRAL
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 
-DLG_MAIN DIALOG 0, 0, 1000, 600
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT |
-      WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
-=======
-=======
->>>>>>> Stashed changes
 DLG_MAIN DIALOG 0, 0, 200, 100
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
->>>>>>> Stashed changes
 MENU IDR_MAINMENU
 CAPTION "Simulador de Compuertas Logicas - Mejorado"
 FONT 8, "Ms Shell Dlg"
@@ -23,19 +14,8 @@ BEGIN
 END
 
 DLG_SIMULATOR DIALOG 0, 0, 1000, 600
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT |
-      WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
-CAPTION "Simulador de Compuertas Logicas - Mejorado"
-=======
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
 CAPTION "Simulador de Compuertas Logicas"
->>>>>>> Stashed changes
-=======
-STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
-CAPTION "Simulador de Compuertas Logicas"
->>>>>>> Stashed changes
 FONT 8, "Ms Shell Dlg"
 BEGIN
     GROUPBOX "Compuertas Basicas", -1, 10, 5, 430, 45
@@ -52,29 +32,15 @@ BEGIN
     PUSHBUTTON "LED", ID_BTN_LED, 520, 20, 50, 25
     PUSHBUTTON "Cable", ID_BTN_CABLE, 580, 20, 50, 25
 
-<<<<<<< Updated upstream
-    GROUPBOX "Herramientas", -1, 650, 5, 230, 45
-    PUSHBUTTON "Eliminar", ID_BTN_DELETE, 660, 20, 60, 25
-    PUSHBUTTON "Limpiar", ID_BTN_CLEAR, 730, 20, 60, 25
-    PUSHBUTTON "Salir", ID_BTN_EXIT, 800, 20, 60, 25
-=======
     GROUPBOX        "Herramientas", -1, 650, 5, 230, 45
     PUSHBUTTON      "Eliminar", ID_BTN_DELETE, 660, 20, 60, 25
     PUSHBUTTON      "Limpiar",  ID_BTN_CLEAR,  730, 20, 60, 25
     PUSHBUTTON      "Salir",    ID_BTN_EXIT,   800, 20, 60, 25
 
     LTEXT           "Area de Trabajo - Coloque componentes y conectelos con cables", -1, 10, 50, 350, 10
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
-    LTEXT "Area de Trabajo - Coloque componentes y conectelos con cables",
-          -1, 10, 55, 350, 10
 END
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 DLG_MATH DIALOG 0, 0, 450, 550
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT |
       WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
@@ -144,9 +110,7 @@ BEGIN
 
     LTEXT           "Area de visualizacion - El Arbol/Grafo se dibujara aqui", -1, 10, 125, 300, 10
 END
-=======
-=======
->>>>>>> Stashed changes
+
 DLG_KARNAUGH DIALOG 0, 0, 500, 350
 STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | WS_CAPTION | WS_SYSMENU
 CAPTION "Mapas de Karnaugh"
@@ -171,30 +135,16 @@ BEGIN
 END
 
 
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 IDR_MAINMENU MENU
 BEGIN
     POPUP "Modo"
     BEGIN
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        MENUITEM "Simulador", ID_MENU_SIMULATOR
-        MENUITEM "Operaciones matematicas", ID_MENU_MATH
-        MENUITEM "Arboles y grafos", ID_MENU_TREES
-=======
-=======
->>>>>>> Stashed changes
+
         MENUITEM "Simulador",               ID_MENU_SIMULATOR
         MENUITEM "Mapas de Karnaugh",       ID_MENU_KARNAUGH
         MENUITEM "Operaciones matemáticas", ID_MENU_MATH
         MENUITEM "Árboles y grafos",        ID_MENU_TREES
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+
     END
 END
 

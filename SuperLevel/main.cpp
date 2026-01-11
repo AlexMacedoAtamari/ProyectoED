@@ -6,20 +6,11 @@
 #include <set>
 #include <cmath>
 #include <string>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 #include <ctime>
 #include <queue>
-=======
 #include <map>
 #include <cctype>
 
->>>>>>> Stashed changes
-=======
-#include <map>
-#include <cctype>
-
->>>>>>> Stashed changes
 #include "resource.h"
 
 using namespace std;
@@ -132,11 +123,7 @@ struct HistoryState {
     vector<Cable> cables;
 };
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
+
 // Estructuras para Karnaugh
 
 struct Literal {
@@ -459,7 +446,6 @@ bool EvaluateTerm(const Term& term, const vector<char>& vars, int binaryIndex) {
 
 // CLASE PRINCIPAL DEL CIRCUITO
 
->>>>>>> Stashed changes
 class Circuit {
 public:
     vector<GateInstance> gates;
@@ -825,11 +811,6 @@ public:
     }
 };
 
-<<<<<<< Updated upstream
-=======
-
-
-
 // Limpiar expresión
 string CleanExpression(const string& input) {
     string out;
@@ -887,72 +868,9 @@ BooleanExpression ParseExpression(const string& input) {
 
     return expr;
 }
-
-
-
-
-// Limpiar expresión
-string CleanExpression(const string& input) {
-    string out;
-    for (char c : input) {
-        if (c != ' ' && c != '\t') {
-            out += toupper(c);
-        }
-    }
-    return out;
-}
-
-// Parsear expresión SOP
-BooleanExpression ParseExpression(const string& input) {
-    BooleanExpression expr;
-    string s = CleanExpression(input);
-
-    // Eliminar "F=" si existe
-    size_t eqPos = s.find('=');
-    if (eqPos != string::npos) {
-        s = s.substr(eqPos + 1);
-    }
-
-    size_t i = 0;
-    Term currentTerm;
-
-    while (i < s.length()) {
-        char c = s[i];
-
-        if (c >= 'A' && c <= 'Z') {
-            Literal lit;
-            lit.var = c;
-            lit.negated = false;
-
-            if (i + 1 < s.length() && s[i + 1] == '\'') {
-                lit.negated = true;
-                i++;
-            }
-
-            currentTerm.literals.push_back(lit);
-            expr.vars.insert(c);
-        }
-        else if (c == '+') {
-            if (!currentTerm.literals.empty()) {
-                expr.terms.push_back(currentTerm);
-                currentTerm.literals.clear();
-            }
-        }
-
-        i++;
-    }
-
-    if (!currentTerm.literals.empty()) {
-        expr.terms.push_back(currentTerm);
-    }
-
-    return expr;
-}
-
 
 // FUNCIONES DE DIBUJO
 
->>>>>>> Stashed changes
 void DrawAND(HDC hdc, int x, int y);
 void DrawOR(HDC hdc, int x, int y);
 void DrawXOR(HDC hdc, int x, int y);
@@ -1047,14 +965,9 @@ int dragOffsetY = 0;
 POINT tempCableEnd;
 bool showTempCable = false;
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgMath(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgTrees(HWND, UINT, WPARAM, LPARAM);
-=======
-=======
->>>>>>> Stashed changes
+
 KarnaughMap g_lastKMap;
 vector<KGroup> g_lastGroups;
 string g_expressionForSimulation;
@@ -1515,142 +1428,10 @@ KarnaughMap BuildKarnaughMap(const BooleanExpression& expr) {
     return km;
 }
 
-/*void BuildCircuitFromExpression(const BooleanExpression& expr) {
-
-    circuit.Clear();
-
-    // 1. Crear SWITCH por cada variable
-    map<char, int> switchIndex;
-    int x = 50;
-    int y = 100;
-
-    for (char v : expr.vars) {
-        GateInstance sw;
-        sw.type = GATE_SWITCH;
-        sw.x = x;
-        sw.y = y;
-        sw.val_out = 0;
-
-        circuit.ComputePins(sw);
-        circuit.gates.push_back(sw);
-
-        switchIndex[v] = circuit.gates.size() - 1;
-        y += 80;
-    }
-
-    // 2. Crear AND por cada término
-    vector<int> andGates;
-    int andX = 300;
-    int andY = 120;
-
-    for (const auto& term : expr.terms) {
-        GateInstance andGate;
-        andGate.type = GATE_AND;
-        andGate.x = andX;
-        andGate.y = andY;
-
-        circuit.ComputePins(andGate);
-        circuit.gates.push_back(andGate);
-
-        int andIndex = circuit.gates.size() - 1;
-        andGates.push_back(andIndex);
-
-        // Conectar literales
-        int inputPin = PIN_INPUT1;
-
-        for (const auto& lit : term.literals) {
-            int srcGate = switchIndex[lit.var];
-
-            int finalSrc = srcGate;
-
-            if (lit.negated) {
-                GateInstance notGate;
-                notGate.type = GATE_NOT;
-                notGate.x = andX - 120;
-                notGate.y = andY;
-
-                circuit.ComputePins(notGate);
-                circuit.gates.push_back(notGate);
-
-                int notIndex = circuit.gates.size() - 1;
-
-                // SWITCH → NOT
-                Cable c1;
-                c1.gateStart = srcGate;
-                c1.pinStart = PIN_OUTPUT;
-                c1.gateEnd = notIndex;
-                c1.pinEnd = PIN_INPUT1;
-                circuit.cables.push_back(c1);
-
-                finalSrc = notIndex;
-            }
-
-            // Fuente → AND
-            Cable c2;
-            c2.gateStart = finalSrc;
-            c2.pinStart = PIN_OUTPUT;
-            c2.gateEnd = andIndex;
-            c2.pinEnd = inputPin;
-            circuit.cables.push_back(c2);
-
-            inputPin = PIN_INPUT2;
-        }
-
-        andY += 100;
-    }
-
-    // 3. OR final
-    GateInstance orGate;
-    orGate.type = GATE_OR;
-    orGate.x = 550;
-    orGate.y = 200;
-
-    circuit.ComputePins(orGate);
-    circuit.gates.push_back(orGate);
-
-    int orIndex = circuit.gates.size() - 1;
-
-    // Conectar ANDs al OR
-    for (size_t i = 0; i < andGates.size(); i++) {
-        Cable c;
-        c.gateStart = andGates[i];
-        c.pinStart = PIN_OUTPUT;
-        c.gateEnd = orIndex;
-        c.pinEnd = (i == 0) ? PIN_INPUT1 : PIN_INPUT2;
-        circuit.cables.push_back(c);
-    }
-
-    // 4. LED de salida
-    GateInstance led;
-    led.type = GATE_LED;
-    led.x = 750;
-    led.y = 200;
-
-    circuit.ComputePins(led);
-    circuit.gates.push_back(led);
-
-    int ledIndex = circuit.gates.size() - 1;
-
-    Cable out;
-    out.gateStart = orIndex;
-    out.pinStart = PIN_OUTPUT;
-    out.gateEnd = ledIndex;
-    out.pinEnd = PIN_INPUT1;
-    circuit.cables.push_back(out);
-
-    circuit.PropagateSignals();
-
-}*/
 
 INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgKarnaugh(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgKarnaughView(HWND, UINT, WPARAM, LPARAM);
-
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-
 
 INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
@@ -1668,13 +1449,6 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                              MAKEINTRESOURCE(DLG_SIMULATOR),
                              hwndDlg,
                              DlgSimulator);
-                    return TRUE;
-
-                case ID_MENU_KARNAUGH:
-                    DialogBox(hInst,
-                        MAKEINTRESOURCE(DLG_KARNAUGH),
-                        hwndDlg,
-                        DlgKarnaugh);
                     return TRUE;
 
                 case ID_MENU_KARNAUGH:
@@ -1705,10 +1479,6 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 }
 
 INT_PTR CALLBACK DlgKarnaugh(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-<<<<<<< Updated upstream
-    switch(uMsg) {
-        case WM_INITDIALOG:
-=======
     switch(uMsg) {
         case WM_INITDIALOG:
             return TRUE;
@@ -1971,280 +1741,6 @@ INT_PTR CALLBACK DlgKarnaughView(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM l
     return FALSE;
 }
 
-
-INT_PTR CALLBACK DlgSimulator(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch(uMsg) {
-        case WM_INITDIALOG:
-
-            circuit.Clear();
-
-            if (!g_simplifiedExpression.terms.empty()) {
-                BuildCircuitFromExpression(g_simplifiedExpression);
-                InvalidateRect(hwndDlg, NULL, TRUE);
-            }
-
-
-            currentMode = MODE_NORMAL;
->>>>>>> Stashed changes
-            return TRUE;
-
-        case WM_CLOSE:
-            EndDialog(hwndDlg, 0);
-            return TRUE;
-
-        case WM_COMMAND: {
-            switch(LOWORD(wParam)) {
-
-                case ID_BTN_SIMPLIFICAR: { // Simplificar
-                    char buffer[256];
-                    GetDlgItemText(hwndDlg, 4001, buffer, 255);
-
-                    BooleanExpression expr = ParseExpression(buffer);
-                    KarnaughMap km = BuildKarnaughMap(expr);
-
-                    vector<KGroup> groups = GroupKarnaugh(km);
-                    BooleanExpression rawExpr = GroupsToExpression(groups, km);
-                    g_simplifiedExpression = SimplifyExpression(rawExpr);
-                    g_expressionForSimulation = ExprToString(g_simplifiedExpression);
-
-                    g_lastKMap = km;
-                    g_lastGroups = groups;
-
-                    string debug = "Mapa Karnaugh:\n";
-                    for (int i = 0; i < km.cells.size(); i++) {
-                        debug += to_string(km.cells[i]) + " ";
-                    }
-
-                    MessageBox(hwndDlg, debug.c_str(), "DEBUG", MB_OK);
-
-                    string result = "vars: ";
-                    for (char v : expr.vars) {
-                        result += v;
-                        result += " ";
-                    }
-
-                    result += "\nTerminos:\n";
-
-                    for (auto& term : expr.terms) {
-                        for (auto& lit : term.literals) {
-                            result += lit.var;
-                            if (lit.negated) result += "'";
-                        }
-                        result += "\n";
-                    }
-
-                    SetDlgItemText(hwndDlg, 4004, result.c_str());
-
-                    DialogBox(
-                        hInst,
-                        MAKEINTRESOURCE(DLG_KARNAUGH_VIEW),
-                        hwndDlg,
-                        DlgKarnaughView
-                    );
-
-
-                    return TRUE;
-                }
-
-
-
-
-                case ID_BTN_SEND_SIMULATOR: {
-
-                    if (g_expressionForSimulation.empty()) {
-                        MessageBox(hwndDlg,
-                            "Primero simplifique la expresión con Karnaugh",
-                            "Aviso",
-                            MB_OK | MB_ICONWARNING);
-                        return TRUE;
-                    }
-
-                    // Convertir string → BooleanExpression
-                    g_simplifiedExpression = ParseExpression(g_expressionForSimulation);
-
-                    DialogBox(hInst,
-                        MAKEINTRESOURCE(DLG_SIMULATOR),
-                        hwndDlg,
-                        DlgSimulator);
-
-                    return TRUE;
-                }
-
-
-            }
-            return TRUE;
-        }
-
-
-    }
-    return FALSE;
-}
-
-INT_PTR CALLBACK DlgKarnaughView(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwndDlg, &ps);
-
-        int rows = 1 << (g_lastKMap.numVars / 2);
-        int cols = 1 << ((g_lastKMap.numVars + 1) / 2);
-
-        int cellW = 60;
-        int cellH = 50;
-        int offsetX = 100;
-        int offsetY = 80;
-
-        // Dibujar etiquetas de columnas (código Gray)
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(0, 0, 0));
-
-        for (int j = 0; j < cols; j++) {
-            int grayCode = ToGrayCode(j);
-            char label[10];
-
-            // Formato binario del código Gray
-            string binary = "";
-            int colBits = (g_lastKMap.numVars + 1) / 2;
-            for (int b = colBits - 1; b >= 0; b--) {
-                binary += ((grayCode >> b) & 1) ? '1' : '0';
-            }
-
-            strcpy(label, binary.c_str());
-
-            RECT r{
-                offsetX + j * cellW,
-                offsetY - 30,
-                offsetX + (j + 1) * cellW,
-                offsetY
-            };
-            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-
-        // Dibujar etiquetas de filas (código Gray)
-        for (int i = 0; i < rows; i++) {
-            int grayCode = ToGrayCode(i);
-            char label[10];
-
-            string binary = "";
-            int rowBits = g_lastKMap.numVars / 2;
-            for (int b = rowBits - 1; b >= 0; b--) {
-                binary += ((grayCode >> b) & 1) ? '1' : '0';
-            }
-
-            strcpy(label, binary.c_str());
-
-            RECT r{
-                offsetX - 70,
-                offsetY + i * cellH,
-                offsetX - 10,
-                offsetY + (i + 1) * cellH
-            };
-            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-
-        // Dibujar nombres de variables
-        string colVars = "";
-        int colBits = (g_lastKMap.numVars + 1) / 2;
-        for (int i = 0; i < colBits && i < (int)g_lastKMap.vars.size(); i++) {
-            colVars += g_lastKMap.vars[i];
-        }
-
-        string rowVars = "";
-        int rowBits = g_lastKMap.numVars / 2;
-        for (int i = colBits; i < (int)g_lastKMap.vars.size(); i++) {
-            rowVars += g_lastKMap.vars[i];
-        }
-
-        // Etiqueta superior (variables de columna)
-        RECT rColLabel{offsetX, offsetY - 60, offsetX + cols * cellW, offsetY - 30};
-        DrawTextA(hdc, colVars.c_str(), -1, &rColLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-        // Etiqueta izquierda (variables de fila)
-        RECT rRowLabel{offsetX - 90, offsetY, offsetX - 70, offsetY + rows * cellH};
-        DrawTextA(hdc, rowVars.c_str(), -1, &rRowLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-        // Dibujar celdas con valores
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                int mapIndex = i * cols + j;
-
-                RECT r{
-                    offsetX + j * cellW,
-                    offsetY + i * cellH,
-                    offsetX + (j + 1) * cellW,
-                    offsetY + (i + 1) * cellH
-                };
-
-                // Fondo de la celda
-                if (mapIndex < (int)g_lastKMap.cells.size() && g_lastKMap.cells[mapIndex] == 1) {
-                    HBRUSH hBrush = CreateSolidBrush(RGB(200, 255, 200));
-                    FillRect(hdc, &r, hBrush);
-                    DeleteObject(hBrush);
-                }
-
-                Rectangle(hdc, r.left, r.top, r.right, r.bottom);
-
-                // Valor de la celda
-                if (mapIndex < (int)g_lastKMap.cells.size()) {
-                    char text[2] = { char('0' + g_lastKMap.cells[mapIndex]), 0 };
-
-                    HFONT hFont = CreateFont(20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
-                    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-                    SetTextColor(hdc, RGB(0, 0, 0));
-                    DrawTextA(hdc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-                    SelectObject(hdc, hOldFont);
-                    DeleteObject(hFont);
-                }
-            }
-        }
-
-        // Dibujar agrupaciones con colores
-        COLORREF colors[] = {
-            RGB(255, 100, 100),
-            RGB(100, 100, 255),
-            RGB(255, 255, 100),
-            RGB(255, 100, 255),
-            RGB(100, 255, 255)
-        };
-
-        for (size_t g = 0; g < g_lastGroups.size() && g < 5; g++) {
-            HPEN hPen = CreatePen(PS_SOLID, 3, colors[g % 5]);
-            HGDIOBJ oldPen = SelectObject(hdc, hPen);
-            HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-            HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
-
-            for (int idx : g_lastGroups[g].cells) {
-                int i = idx / cols;
-                int j = idx % cols;
-
-                Rectangle(
-                    hdc,
-                    offsetX + j * cellW + 3,
-                    offsetY + i * cellH + 3,
-                    offsetX + (j + 1) * cellW - 3,
-                    offsetY + (i + 1) * cellH - 3
-                );
-            }
-
-            SelectObject(hdc, oldPen);
-            SelectObject(hdc, oldBrush);
-            DeleteObject(hPen);
-        }
-
-        EndPaint(hwndDlg, &ps);
-        return TRUE;
-    }
-
-    case WM_CLOSE:
-        EndDialog(hwndDlg, 0);
-        return TRUE;
-    }
-    return FALSE;
-}
 
 
 INT_PTR CALLBACK DlgSimulator(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -3194,9 +2690,9 @@ struct Edge {
 
 class Graph {
 private:
-    int V; 
-    vector<vector<pair<int, int>>> adj; 
-    vector<Edge> edges; 
+    int V;
+    vector<vector<pair<int, int>>> adj;
+    vector<Edge> edges;
     vector<pair<int, int>> positions;
 
     void CalculatePositions(int centerX, int centerY, int radius) {
@@ -3276,9 +2772,9 @@ public:
             int x1 = positions[e.u].first, y1 = positions[e.u].second;
             int x2 = positions[e.v].first, y2 = positions[e.v].second;
 
-            COLORREF color = RGB(100, 100, 100); 
-            if (e.state == EDGE_CONSIDERED) color = RGB(255, 255, 0); 
-            else if (e.state == EDGE_SELECTED) color = RGB(0, 255, 0); 
+            COLORREF color = RGB(100, 100, 100);
+            if (e.state == EDGE_CONSIDERED) color = RGB(255, 255, 0);
+            else if (e.state == EDGE_SELECTED) color = RGB(0, 255, 0);
 
             GDIGuard pen(hdc, CreatePen(PS_SOLID, 2, color));
             MoveToEx(hdc, x1, y1, NULL);
@@ -3372,7 +2868,7 @@ INT_PTR CALLBACK DlgTrees(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         currentGraph->AddEdge(1, 7, 11);
                         currentGraph->AddEdge(2, 3, 7);
                         currentGraph->AddEdge(2, 5, 4);
-                        currentGraph->AddEdge(2, 7, 2); 
+                        currentGraph->AddEdge(2, 7, 2);
                         currentGraph->AddEdge(3, 4, 9);
                         currentGraph->AddEdge(3, 5, 14);
                         currentGraph->AddEdge(4, 5, 10);
