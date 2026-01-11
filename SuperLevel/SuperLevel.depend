@@ -1,6 +1,10 @@
 # depslib dependency file v1.0
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 1768098953 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+=======
+1768096041 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+>>>>>>> Stashed changes
 =======
 1768096041 source:e:\codeblocks\proyectoed\superlevel\resource.rc
 >>>>>>> Stashed changes
@@ -10,7 +14,11 @@
 	"resource.h"
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 1768098953 e:\codeblocks\proyectoed\superlevel\resource.h
+=======
+1768095847 e:\codeblocks\proyectoed\superlevel\resource.h
+>>>>>>> Stashed changes
 =======
 1768095847 e:\codeblocks\proyectoed\superlevel\resource.h
 >>>>>>> Stashed changes

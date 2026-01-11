@@ -79,4 +79,7 @@
 #define ID_BTN_SIMPLIFICAR     4002
 #define ID_BTN_SEND_SIMULATOR  4005
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes

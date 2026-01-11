@@ -7,8 +7,14 @@
 #include <cmath>
 #include <string>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 #include <ctime>
 #include <queue>
+=======
+#include <map>
+#include <cctype>
+
+>>>>>>> Stashed changes
 =======
 #include <map>
 #include <cctype>
@@ -127,7 +133,10 @@ struct HistoryState {
 };
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 // Estructuras para Karnaugh
 
 struct Literal {
@@ -880,6 +889,67 @@ BooleanExpression ParseExpression(const string& input) {
 }
 
 
+
+
+// Limpiar expresión
+string CleanExpression(const string& input) {
+    string out;
+    for (char c : input) {
+        if (c != ' ' && c != '\t') {
+            out += toupper(c);
+        }
+    }
+    return out;
+}
+
+// Parsear expresión SOP
+BooleanExpression ParseExpression(const string& input) {
+    BooleanExpression expr;
+    string s = CleanExpression(input);
+
+    // Eliminar "F=" si existe
+    size_t eqPos = s.find('=');
+    if (eqPos != string::npos) {
+        s = s.substr(eqPos + 1);
+    }
+
+    size_t i = 0;
+    Term currentTerm;
+
+    while (i < s.length()) {
+        char c = s[i];
+
+        if (c >= 'A' && c <= 'Z') {
+            Literal lit;
+            lit.var = c;
+            lit.negated = false;
+
+            if (i + 1 < s.length() && s[i + 1] == '\'') {
+                lit.negated = true;
+                i++;
+            }
+
+            currentTerm.literals.push_back(lit);
+            expr.vars.insert(c);
+        }
+        else if (c == '+') {
+            if (!currentTerm.literals.empty()) {
+                expr.terms.push_back(currentTerm);
+                currentTerm.literals.clear();
+            }
+        }
+
+        i++;
+    }
+
+    if (!currentTerm.literals.empty()) {
+        expr.terms.push_back(currentTerm);
+    }
+
+    return expr;
+}
+
+
 // FUNCIONES DE DIBUJO
 
 >>>>>>> Stashed changes
@@ -978,10 +1048,13 @@ POINT tempCableEnd;
 bool showTempCable = false;
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgMath(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgTrees(HWND, UINT, WPARAM, LPARAM);
 =======
+=======
+>>>>>>> Stashed changes
 KarnaughMap g_lastKMap;
 vector<KGroup> g_lastGroups;
 string g_expressionForSimulation;
@@ -1573,6 +1646,9 @@ INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgKarnaugh(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgKarnaughView(HWND, UINT, WPARAM, LPARAM);
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 
@@ -1592,6 +1668,13 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                              MAKEINTRESOURCE(DLG_SIMULATOR),
                              hwndDlg,
                              DlgSimulator);
+                    return TRUE;
+
+                case ID_MENU_KARNAUGH:
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_KARNAUGH),
+                        hwndDlg,
+                        DlgKarnaugh);
                     return TRUE;
 
                 case ID_MENU_KARNAUGH:
@@ -1622,8 +1705,287 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 }
 
 INT_PTR CALLBACK DlgKarnaugh(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+<<<<<<< Updated upstream
     switch(uMsg) {
         case WM_INITDIALOG:
+=======
+    switch(uMsg) {
+        case WM_INITDIALOG:
+            return TRUE;
+
+        case WM_CLOSE:
+            EndDialog(hwndDlg, 0);
+            return TRUE;
+
+        case WM_COMMAND: {
+            switch(LOWORD(wParam)) {
+
+                case ID_BTN_SIMPLIFICAR: { // Simplificar
+                    char buffer[256];
+                    GetDlgItemText(hwndDlg, 4001, buffer, 255);
+
+                    BooleanExpression expr = ParseExpression(buffer);
+                    KarnaughMap km = BuildKarnaughMap(expr);
+
+                    vector<KGroup> groups = GroupKarnaugh(km);
+                    BooleanExpression rawExpr = GroupsToExpression(groups, km);
+                    g_simplifiedExpression = SimplifyExpression(rawExpr);
+                    g_expressionForSimulation = ExprToString(g_simplifiedExpression);
+
+                    g_lastKMap = km;
+                    g_lastGroups = groups;
+
+                    string debug = "Mapa Karnaugh:\n";
+                    for (int i = 0; i < km.cells.size(); i++) {
+                        debug += to_string(km.cells[i]) + " ";
+                    }
+
+                    MessageBox(hwndDlg, debug.c_str(), "DEBUG", MB_OK);
+
+                    string result = "vars: ";
+                    for (char v : expr.vars) {
+                        result += v;
+                        result += " ";
+                    }
+
+                    result += "\nTerminos:\n";
+
+                    for (auto& term : expr.terms) {
+                        for (auto& lit : term.literals) {
+                            result += lit.var;
+                            if (lit.negated) result += "'";
+                        }
+                        result += "\n";
+                    }
+
+                    SetDlgItemText(hwndDlg, 4004, result.c_str());
+
+                    DialogBox(
+                        hInst,
+                        MAKEINTRESOURCE(DLG_KARNAUGH_VIEW),
+                        hwndDlg,
+                        DlgKarnaughView
+                    );
+
+
+                    return TRUE;
+                }
+
+
+
+
+                case ID_BTN_SEND_SIMULATOR: {
+
+                    if (g_expressionForSimulation.empty()) {
+                        MessageBox(hwndDlg,
+                            "Primero simplifique la expresión con Karnaugh",
+                            "Aviso",
+                            MB_OK | MB_ICONWARNING);
+                        return TRUE;
+                    }
+
+                    // Convertir string → BooleanExpression
+                    g_simplifiedExpression = ParseExpression(g_expressionForSimulation);
+
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_SIMULATOR),
+                        hwndDlg,
+                        DlgSimulator);
+
+                    return TRUE;
+                }
+
+
+            }
+            return TRUE;
+        }
+
+
+    }
+    return FALSE;
+}
+
+INT_PTR CALLBACK DlgKarnaughView(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwndDlg, &ps);
+
+        int rows = 1 << (g_lastKMap.numVars / 2);
+        int cols = 1 << ((g_lastKMap.numVars + 1) / 2);
+
+        int cellW = 60;
+        int cellH = 50;
+        int offsetX = 100;
+        int offsetY = 80;
+
+        // Dibujar etiquetas de columnas (código Gray)
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(0, 0, 0));
+
+        for (int j = 0; j < cols; j++) {
+            int grayCode = ToGrayCode(j);
+            char label[10];
+
+            // Formato binario del código Gray
+            string binary = "";
+            int colBits = (g_lastKMap.numVars + 1) / 2;
+            for (int b = colBits - 1; b >= 0; b--) {
+                binary += ((grayCode >> b) & 1) ? '1' : '0';
+            }
+
+            strcpy(label, binary.c_str());
+
+            RECT r{
+                offsetX + j * cellW,
+                offsetY - 30,
+                offsetX + (j + 1) * cellW,
+                offsetY
+            };
+            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+
+        // Dibujar etiquetas de filas (código Gray)
+        for (int i = 0; i < rows; i++) {
+            int grayCode = ToGrayCode(i);
+            char label[10];
+
+            string binary = "";
+            int rowBits = g_lastKMap.numVars / 2;
+            for (int b = rowBits - 1; b >= 0; b--) {
+                binary += ((grayCode >> b) & 1) ? '1' : '0';
+            }
+
+            strcpy(label, binary.c_str());
+
+            RECT r{
+                offsetX - 70,
+                offsetY + i * cellH,
+                offsetX - 10,
+                offsetY + (i + 1) * cellH
+            };
+            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+
+        // Dibujar nombres de variables
+        string colVars = "";
+        int colBits = (g_lastKMap.numVars + 1) / 2;
+        for (int i = 0; i < colBits && i < (int)g_lastKMap.vars.size(); i++) {
+            colVars += g_lastKMap.vars[i];
+        }
+
+        string rowVars = "";
+        int rowBits = g_lastKMap.numVars / 2;
+        for (int i = colBits; i < (int)g_lastKMap.vars.size(); i++) {
+            rowVars += g_lastKMap.vars[i];
+        }
+
+        // Etiqueta superior (variables de columna)
+        RECT rColLabel{offsetX, offsetY - 60, offsetX + cols * cellW, offsetY - 30};
+        DrawTextA(hdc, colVars.c_str(), -1, &rColLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        // Etiqueta izquierda (variables de fila)
+        RECT rRowLabel{offsetX - 90, offsetY, offsetX - 70, offsetY + rows * cellH};
+        DrawTextA(hdc, rowVars.c_str(), -1, &rRowLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        // Dibujar celdas con valores
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                int mapIndex = i * cols + j;
+
+                RECT r{
+                    offsetX + j * cellW,
+                    offsetY + i * cellH,
+                    offsetX + (j + 1) * cellW,
+                    offsetY + (i + 1) * cellH
+                };
+
+                // Fondo de la celda
+                if (mapIndex < (int)g_lastKMap.cells.size() && g_lastKMap.cells[mapIndex] == 1) {
+                    HBRUSH hBrush = CreateSolidBrush(RGB(200, 255, 200));
+                    FillRect(hdc, &r, hBrush);
+                    DeleteObject(hBrush);
+                }
+
+                Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+
+                // Valor de la celda
+                if (mapIndex < (int)g_lastKMap.cells.size()) {
+                    char text[2] = { char('0' + g_lastKMap.cells[mapIndex]), 0 };
+
+                    HFONT hFont = CreateFont(20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
+                    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+                    SetTextColor(hdc, RGB(0, 0, 0));
+                    DrawTextA(hdc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+                    SelectObject(hdc, hOldFont);
+                    DeleteObject(hFont);
+                }
+            }
+        }
+
+        // Dibujar agrupaciones con colores
+        COLORREF colors[] = {
+            RGB(255, 100, 100),
+            RGB(100, 100, 255),
+            RGB(255, 255, 100),
+            RGB(255, 100, 255),
+            RGB(100, 255, 255)
+        };
+
+        for (size_t g = 0; g < g_lastGroups.size() && g < 5; g++) {
+            HPEN hPen = CreatePen(PS_SOLID, 3, colors[g % 5]);
+            HGDIOBJ oldPen = SelectObject(hdc, hPen);
+            HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+            HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+
+            for (int idx : g_lastGroups[g].cells) {
+                int i = idx / cols;
+                int j = idx % cols;
+
+                Rectangle(
+                    hdc,
+                    offsetX + j * cellW + 3,
+                    offsetY + i * cellH + 3,
+                    offsetX + (j + 1) * cellW - 3,
+                    offsetY + (i + 1) * cellH - 3
+                );
+            }
+
+            SelectObject(hdc, oldPen);
+            SelectObject(hdc, oldBrush);
+            DeleteObject(hPen);
+        }
+
+        EndPaint(hwndDlg, &ps);
+        return TRUE;
+    }
+
+    case WM_CLOSE:
+        EndDialog(hwndDlg, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+
+INT_PTR CALLBACK DlgSimulator(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch(uMsg) {
+        case WM_INITDIALOG:
+
+            circuit.Clear();
+
+            if (!g_simplifiedExpression.terms.empty()) {
+                BuildCircuitFromExpression(g_simplifiedExpression);
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            }
+
+
+            currentMode = MODE_NORMAL;
+>>>>>>> Stashed changes
             return TRUE;
 
         case WM_CLOSE:
