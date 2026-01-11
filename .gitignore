@@ -1,3 +1,10 @@
+# --- Reglas de CodeBlocks (Tus cambios) ---
+*.depend
+*.layout
+bin/
+obj/
+
+# --- Reglas Generales (Cambios de tus amigos) ---
 # Prerequisites
 *.d
 
