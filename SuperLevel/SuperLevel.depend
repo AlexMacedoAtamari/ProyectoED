@@ -33,3 +33,22 @@
 
 1767824049 e:\codeblocks\proyectoed\superlevel\renderer.h
 
+1768086083 source:c:\users\user\proyectoed\superlevel\resource.rc
+	<windows.h>
+	<commctrl.h>
+	<richedit.h>
+	"resource.h"
+
+1768086083 c:\users\user\proyectoed\superlevel\resource.h
+
+1768087066 source:c:\users\user\proyectoed\superlevel\main.cpp
+	<windows.h>
+	<commctrl.h>
+	<stdio.h>
+	<vector>
+	<algorithm>
+	<set>
+	<cmath>
+	<string>
+	"resource.h"
+
