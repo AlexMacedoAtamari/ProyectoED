@@ -6,8 +6,14 @@
 #include <set>
 #include <cmath>
 #include <string>
+<<<<<<< Updated upstream
 #include <ctime>
 #include <queue>
+=======
+#include <map>
+#include <cctype>
+
+>>>>>>> Stashed changes
 #include "resource.h"
 
 using namespace std;
@@ -120,6 +126,331 @@ struct HistoryState {
     vector<Cable> cables;
 };
 
+<<<<<<< Updated upstream
+=======
+// Estructuras para Karnaugh
+
+struct Literal {
+    char var;     // 'A', 'B', 'C'
+    bool negated; // true si es A'
+};
+
+struct Term {
+    vector<Literal> literals;
+};
+
+struct BooleanExpression {
+    vector<Term> terms; // OR entre términos
+    set<char> vars;       // Variables detectadas
+};
+
+struct KarnaughMap {
+    int numVars;                 // 2, 3 o 4
+    vector<char> vars;           // {'A','B','C'}
+    vector<int> cells;           // tamaño = 2^numVars
+};
+
+struct KGroup {
+    vector<int> cells;   // índices de celdas agrupadas
+    bool wraps = false;   // NUEVO: cruza bordes
+};
+
+// Vecinos validos
+
+bool AreAdjacent(int a, int b, int numVars) {
+
+    int diff = a ^ b;
+    if (diff && ((diff & (diff - 1)) == 0))
+        return true; // adyacencia normal
+
+    // ---- WRAP HORIZONTAL ----
+    int cols = 1 << ((numVars + 1) / 2);
+
+    int rowA = a / cols;
+    int colA = a % cols;
+    int rowB = b / cols;
+    int colB = b % cols;
+
+    if (rowA == rowB) {
+        if ((colA == 0 && colB == cols - 1) ||
+            (colB == 0 && colA == cols - 1))
+            return true;
+    }
+
+    return false;
+}
+
+
+int PopCount(int x) {
+    int count = 0;
+    while (x) {
+        x &= (x - 1);
+        count++;
+    }
+    return count;
+}
+
+
+// Pares
+vector<KGroup> FindPairs(const KarnaughMap& km) {
+
+    vector<KGroup> groups;
+
+    int size = km.cells.size();
+    for (int i = 0; i < size; i++) {
+        if (km.cells[i] == 0) continue;
+
+        for (int j = i + 1; j < size; j++) {
+            if (km.cells[j] == 0) continue;
+
+            if (AreAdjacent(i, j, km.numVars)) {
+                KGroup g;
+                g.cells.push_back(i);
+                g.cells.push_back(j);
+                groups.push_back(g);
+            }
+        }
+    }
+    int cols = 1 << ((km.numVars + 1) / 2);
+
+    for (auto& g : groups) {
+        bool left = false, right = false;
+
+        for (int idx : g.cells) {
+            int col = idx % cols;
+            if (col == 0) left = true;
+            if (col == cols - 1) right = true;
+        }
+
+        if (left && right)
+            g.wraps = true;
+    }
+
+
+    return groups;
+}
+
+// Cuartetos
+vector<KGroup> FindQuads(const KarnaughMap& km) {
+
+    vector<KGroup> groups;
+    int size = km.cells.size();
+
+    for (int a = 0; a < size; a++) {
+        if (km.cells[a] == 0) continue;
+
+        for (int b = a + 1; b < size; b++) {
+            if (km.cells[b] == 0) continue;
+            if (!AreAdjacent(a, b, km.numVars)) continue;
+
+            for (int c = b + 1; c < size; c++) {
+                if (km.cells[c] == 0) continue;
+
+                for (int d = c + 1; d < size; d++) {
+                    if (km.cells[d] == 0) continue;
+
+                    // Verificar que TODOS difieran solo en 2 bits
+                    int mask = (a ^ b) | (a ^ c) | (a ^ d);
+                    if (PopCount(mask) == 2) {
+                        KGroup g;
+                        g.cells = {a, b, c, d};
+                        groups.push_back(g);
+                    }
+                }
+            }
+        }
+    }
+    return groups;
+}
+
+// Funcion maestra
+vector<KGroup> GroupKarnaugh(const KarnaughMap& km) {
+
+    vector<KGroup> result;
+
+    // Prioridad: grupos grandes
+    vector<KGroup> quads = FindQuads(km);
+    vector<KGroup> pairs = FindPairs(km);
+
+    result.insert(result.end(), quads.begin(), quads.end());
+    result.insert(result.end(), pairs.begin(), pairs.end());
+
+    // celdas solas
+    for (int i = 0; i < km.cells.size(); i++) {
+        if (km.cells[i] == 1) {
+            bool used = false;
+            for (const auto& g : result) {
+                if (find(g.cells.begin(), g.cells.end(), i) != g.cells.end()) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) {
+                KGroup single;
+                single.cells.push_back(i);
+                result.push_back(single);
+            }
+        }
+    }
+
+    return result;
+}
+
+BooleanExpression GroupsToExpression(
+    const vector<KGroup>& groups,
+    const KarnaughMap& km
+) {
+    BooleanExpression result;
+
+    for (const auto& group : groups) {
+        Term term;
+
+        // Tomamos la primera celda como referencia
+        int baseIndex = group.cells[0];
+
+        for (int var = 0; var < (int)km.vars.size(); var++) {
+            bool same = true;
+            int baseValue = (baseIndex >> var) & 1;
+
+            for (int idx : group.cells) {
+                int value = (idx >> var) & 1;
+                if (value != baseValue) {
+                    same = false;
+                    break;
+                }
+            }
+
+            // Si no cambia dentro del grupo, la variable permanece
+            if (same) {
+                Literal lit;
+                lit.var = km.vars[var];
+                lit.negated = (baseValue == 0);
+                term.literals.push_back(lit);
+            }
+        }
+
+        result.terms.push_back(term);
+    }
+
+    return result;
+}
+
+// Reducir expresiones
+bool IsTermSubset(const Term& a, const Term& b) {
+    // ¿a ⊆ b ?
+    for (const auto& litA : a.literals) {
+        bool found = false;
+        for (const auto& litB : b.literals) {
+            if (litA.var == litB.var &&
+                litA.negated == litB.negated) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+// Simplificar
+BooleanExpression SimplifyExpression(const BooleanExpression& expr) {
+
+    BooleanExpression simplified;
+    simplified.vars = expr.vars;
+
+    for (size_t i = 0; i < expr.terms.size(); i++) {
+        bool redundant = false;
+
+        for (size_t j = 0; j < expr.terms.size(); j++) {
+            if (i == j) continue;
+
+            // Si otro término más simple lo absorbe
+            if (IsTermSubset(expr.terms[j], expr.terms[i]) &&
+                expr.terms[j].literals.size() <= expr.terms[i].literals.size()) {
+                redundant = true;
+                break;
+            }
+        }
+
+        if (!redundant) {
+            simplified.terms.push_back(expr.terms[i]);
+        }
+    }
+
+    return simplified;
+}
+
+string ExprToString(const BooleanExpression& expr) {
+    string s;
+
+    for (size_t i = 0; i < expr.terms.size(); i++) {
+        if (i > 0) s += " + ";
+
+        for (const auto& lit : expr.terms[i].literals) {
+            s += lit.var;
+            if (lit.negated) s += "'";
+        }
+    }
+    return s;
+}
+
+
+// Para Karnaugh
+BooleanExpression g_simplifiedExpression;
+void BuildCircuitFromExpression(const BooleanExpression& expr);
+
+vector<char> GetVariables(const BooleanExpression& expr) {
+    vector<char> vars;
+
+    for (const auto& term : expr.terms) {
+        for (const auto& lit : term.literals) {
+            if (find(vars.begin(), vars.end(), lit.var) == vars.end()) {
+                vars.push_back(lit.var);
+            }
+        }
+    }
+    return vars;
+}
+
+bool EvaluateTerm(const Term& term, const vector<char>& vars, int binaryIndex) {
+    // Para cada literal del término
+    for (const auto& lit : term.literals) {
+        // Encontrar la posición de esta variable en el vector ordenado
+        int varPos = -1;
+        for (size_t i = 0; i < vars.size(); i++) {
+            if (vars[i] == lit.var) {
+                varPos = i;
+                break;
+            }
+        }
+
+        if (varPos == -1) continue; // Variable no encontrada (error)
+
+        // Extraer el bit correspondiente del índice binario
+        // IMPORTANTE: El bit más significativo es la primera variable
+        int bitPosition = vars.size() - 1 - varPos;
+        bool bitValue = (binaryIndex >> bitPosition) & 1;
+
+        // Aplicar negación si es necesario
+        bool literalValue = lit.negated ? !bitValue : bitValue;
+
+        // Si algún literal es falso, todo el término es falso (AND)
+        if (!literalValue) {
+            return false;
+        }
+    }
+
+    // Todos los literales son verdaderos
+    return true;
+}
+
+
+
+
+
+
+// CLASE PRINCIPAL DEL CIRCUITO
+
+>>>>>>> Stashed changes
 class Circuit {
 public:
     vector<GateInstance> gates;
@@ -485,6 +816,73 @@ public:
     }
 };
 
+<<<<<<< Updated upstream
+=======
+
+
+
+// Limpiar expresión
+string CleanExpression(const string& input) {
+    string out;
+    for (char c : input) {
+        if (c != ' ' && c != '\t') {
+            out += toupper(c);
+        }
+    }
+    return out;
+}
+
+// Parsear expresión SOP
+BooleanExpression ParseExpression(const string& input) {
+    BooleanExpression expr;
+    string s = CleanExpression(input);
+
+    // Eliminar "F=" si existe
+    size_t eqPos = s.find('=');
+    if (eqPos != string::npos) {
+        s = s.substr(eqPos + 1);
+    }
+
+    size_t i = 0;
+    Term currentTerm;
+
+    while (i < s.length()) {
+        char c = s[i];
+
+        if (c >= 'A' && c <= 'Z') {
+            Literal lit;
+            lit.var = c;
+            lit.negated = false;
+
+            if (i + 1 < s.length() && s[i + 1] == '\'') {
+                lit.negated = true;
+                i++;
+            }
+
+            currentTerm.literals.push_back(lit);
+            expr.vars.insert(c);
+        }
+        else if (c == '+') {
+            if (!currentTerm.literals.empty()) {
+                expr.terms.push_back(currentTerm);
+                currentTerm.literals.clear();
+            }
+        }
+
+        i++;
+    }
+
+    if (!currentTerm.literals.empty()) {
+        expr.terms.push_back(currentTerm);
+    }
+
+    return expr;
+}
+
+
+// FUNCIONES DE DIBUJO
+
+>>>>>>> Stashed changes
 void DrawAND(HDC hdc, int x, int y);
 void DrawOR(HDC hdc, int x, int y);
 void DrawXOR(HDC hdc, int x, int y);
@@ -579,9 +977,603 @@ int dragOffsetY = 0;
 POINT tempCableEnd;
 bool showTempCable = false;
 
+<<<<<<< Updated upstream
 INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgMath(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgTrees(HWND, UINT, WPARAM, LPARAM);
+=======
+KarnaughMap g_lastKMap;
+vector<KGroup> g_lastGroups;
+string g_expressionForSimulation;
+
+void BuildCircuitFromExpression(const BooleanExpression& expr) {
+    circuit.Clear();
+
+    if (expr.terms.empty()) {
+        MessageBox(NULL, "Expresión vacía", "Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // 1. Crear SWITCH por cada variable
+    map<char, int> switchIndex;
+    int x = 50;
+    int y = 100;
+
+    vector<char> sortedVars(expr.vars.begin(), expr.vars.end());
+    sort(sortedVars.begin(), sortedVars.end());
+
+    for (char v : sortedVars) {
+        GateInstance sw;
+        sw.type = GATE_SWITCH;
+        sw.x = x;
+        sw.y = y;
+        sw.val_out = 0;
+
+        circuit.ComputePins(sw);
+        circuit.gates.push_back(sw);
+
+        switchIndex[v] = circuit.gates.size() - 1;
+        y += 80;
+    }
+
+    // 2. Crear compuertas AND por cada término
+    vector<int> andOrGates; // Guardar índices de compuertas de cada término
+    int andX = 300;
+    int andY = 100;
+
+    for (const auto& term : expr.terms) {
+        if (term.literals.empty()) continue;
+
+        // Si el término tiene solo 1 literal
+        if (term.literals.size() == 1) {
+            int srcGate = switchIndex[term.literals[0].var];
+
+            if (term.literals[0].negated) {
+                // Crear NOT
+                GateInstance notGate;
+                notGate.type = GATE_NOT;
+                notGate.x = andX;
+                notGate.y = andY;
+                circuit.ComputePins(notGate);
+                circuit.gates.push_back(notGate);
+
+                int notIndex = circuit.gates.size() - 1;
+
+                // SWITCH → NOT
+                Cable c;
+                c.gateStart = srcGate;
+                c.pinStart = PIN_OUTPUT;
+                c.gateEnd = notIndex;
+                c.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c);
+
+                andOrGates.push_back(notIndex);
+            } else {
+                andOrGates.push_back(srcGate);
+            }
+        }
+        // Si tiene 2 literales, usar AND directo
+        else if (term.literals.size() == 2) {
+            GateInstance andGate;
+            andGate.type = GATE_AND;
+            andGate.x = andX;
+            andGate.y = andY;
+            circuit.ComputePins(andGate);
+            circuit.gates.push_back(andGate);
+
+            int andIndex = circuit.gates.size() - 1;
+
+            // Conectar primer literal
+            int src1 = switchIndex[term.literals[0].var];
+            if (term.literals[0].negated) {
+                GateInstance notGate;
+                notGate.type = GATE_NOT;
+                notGate.x = andX - 120;
+                notGate.y = andY - 20;
+                circuit.ComputePins(notGate);
+                circuit.gates.push_back(notGate);
+
+                int notIndex = circuit.gates.size() - 1;
+
+                Cable c1;
+                c1.gateStart = src1;
+                c1.pinStart = PIN_OUTPUT;
+                c1.gateEnd = notIndex;
+                c1.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c1);
+
+                src1 = notIndex;
+            }
+
+            Cable c2;
+            c2.gateStart = src1;
+            c2.pinStart = PIN_OUTPUT;
+            c2.gateEnd = andIndex;
+            c2.pinEnd = PIN_INPUT1;
+            circuit.cables.push_back(c2);
+
+            // Conectar segundo literal
+            int src2 = switchIndex[term.literals[1].var];
+            if (term.literals[1].negated) {
+                GateInstance notGate;
+                notGate.type = GATE_NOT;
+                notGate.x = andX - 120;
+                notGate.y = andY + 20;
+                circuit.ComputePins(notGate);
+                circuit.gates.push_back(notGate);
+
+                int notIndex = circuit.gates.size() - 1;
+
+                Cable c3;
+                c3.gateStart = src2;
+                c3.pinStart = PIN_OUTPUT;
+                c3.gateEnd = notIndex;
+                c3.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c3);
+
+                src2 = notIndex;
+            }
+
+            Cable c4;
+            c4.gateStart = src2;
+            c4.pinStart = PIN_OUTPUT;
+            c4.gateEnd = andIndex;
+            c4.pinEnd = PIN_INPUT2;
+            circuit.cables.push_back(c4);
+
+            andOrGates.push_back(andIndex);
+        }
+        // Si tiene más de 2 literales, crear cadena de ANDs
+        else {
+            int prevAndIndex = -1;
+
+            for (size_t i = 0; i < term.literals.size(); i++) {
+                if (i == 0) {
+                    // Primer AND con dos primeros literales
+                    GateInstance andGate;
+                    andGate.type = GATE_AND;
+                    andGate.x = andX;
+                    andGate.y = andY;
+                    circuit.ComputePins(andGate);
+                    circuit.gates.push_back(andGate);
+
+                    prevAndIndex = circuit.gates.size() - 1;
+
+                    // Conectar primeros dos literales
+                    for (int j = 0; j < 2 && j < (int)term.literals.size(); j++) {
+                        int srcGate = switchIndex[term.literals[j].var];
+                        int finalSrc = srcGate;
+
+                        if (term.literals[j].negated) {
+                            GateInstance notGate;
+                            notGate.type = GATE_NOT;
+                            notGate.x = andX - 120;
+                            notGate.y = andY + j * 40 - 20;
+                            circuit.ComputePins(notGate);
+                            circuit.gates.push_back(notGate);
+
+                            int notIndex = circuit.gates.size() - 1;
+
+                            Cable c1;
+                            c1.gateStart = srcGate;
+                            c1.pinStart = PIN_OUTPUT;
+                            c1.gateEnd = notIndex;
+                            c1.pinEnd = PIN_INPUT1;
+                            circuit.cables.push_back(c1);
+
+                            finalSrc = notIndex;
+                        }
+
+                        Cable c2;
+                        c2.gateStart = finalSrc;
+                        c2.pinStart = PIN_OUTPUT;
+                        c2.gateEnd = prevAndIndex;
+                        c2.pinEnd = (j == 0) ? PIN_INPUT1 : PIN_INPUT2;
+                        circuit.cables.push_back(c2);
+                    }
+
+                    i = 1; // Ya procesamos los dos primeros
+                }
+                else if (i < term.literals.size()) {
+                    // ANDs adicionales
+                    GateInstance andGate;
+                    andGate.type = GATE_AND;
+                    andGate.x = andX + 80;
+                    andGate.y = andY;
+                    circuit.ComputePins(andGate);
+                    circuit.gates.push_back(andGate);
+
+                    int newAndIndex = circuit.gates.size() - 1;
+
+                    // Conectar resultado anterior
+                    Cable c1;
+                    c1.gateStart = prevAndIndex;
+                    c1.pinStart = PIN_OUTPUT;
+                    c1.gateEnd = newAndIndex;
+                    c1.pinEnd = PIN_INPUT1;
+                    circuit.cables.push_back(c1);
+
+                    // Conectar nuevo literal
+                    int srcGate = switchIndex[term.literals[i].var];
+                    int finalSrc = srcGate;
+
+                    if (term.literals[i].negated) {
+                        GateInstance notGate;
+                        notGate.type = GATE_NOT;
+                        notGate.x = andX - 40;
+                        notGate.y = andY + 40;
+                        circuit.ComputePins(notGate);
+                        circuit.gates.push_back(notGate);
+
+                        int notIndex = circuit.gates.size() - 1;
+
+                        Cable c2;
+                        c2.gateStart = srcGate;
+                        c2.pinStart = PIN_OUTPUT;
+                        c2.gateEnd = notIndex;
+                        c2.pinEnd = PIN_INPUT1;
+                        circuit.cables.push_back(c2);
+
+                        finalSrc = notIndex;
+                    }
+
+                    Cable c3;
+                    c3.gateStart = finalSrc;
+                    c3.pinStart = PIN_OUTPUT;
+                    c3.gateEnd = newAndIndex;
+                    c3.pinEnd = PIN_INPUT2;
+                    circuit.cables.push_back(c3);
+
+                    prevAndIndex = newAndIndex;
+                    andX += 80;
+                }
+            }
+
+            if (prevAndIndex >= 0) {
+                andOrGates.push_back(prevAndIndex);
+            }
+        }
+
+        andY += 100;
+        andX = 300;
+    }
+
+    // 3. Crear OR final (si hay más de un término) o conectar directamente
+    int finalOutputGate;
+
+    if (andOrGates.size() == 1) {
+        // Solo un término, conectar directamente
+        finalOutputGate = andOrGates[0];
+    }
+    else if (andOrGates.size() == 2) {
+        // Dos términos, un solo OR
+        GateInstance orGate;
+        orGate.type = GATE_OR;
+        orGate.x = 550;
+        orGate.y = 200;
+        circuit.ComputePins(orGate);
+        circuit.gates.push_back(orGate);
+
+        int orIndex = circuit.gates.size() - 1;
+
+        Cable c1;
+        c1.gateStart = andOrGates[0];
+        c1.pinStart = PIN_OUTPUT;
+        c1.gateEnd = orIndex;
+        c1.pinEnd = PIN_INPUT1;
+        circuit.cables.push_back(c1);
+
+        Cable c2;
+        c2.gateStart = andOrGates[1];
+        c2.pinStart = PIN_OUTPUT;
+        c2.gateEnd = orIndex;
+        c2.pinEnd = PIN_INPUT2;
+        circuit.cables.push_back(c2);
+
+        finalOutputGate = orIndex;
+    }
+    else {
+        // Múltiples términos, crear cadena de ORs
+        int prevOrIndex = -1;
+
+        for (size_t i = 0; i < andOrGates.size(); i++) {
+            if (i == 0) {
+                // Primer OR
+                GateInstance orGate;
+                orGate.type = GATE_OR;
+                orGate.x = 550;
+                orGate.y = 200;
+                circuit.ComputePins(orGate);
+                circuit.gates.push_back(orGate);
+
+                prevOrIndex = circuit.gates.size() - 1;
+
+                // Conectar primeros dos términos
+                Cable c1;
+                c1.gateStart = andOrGates[0];
+                c1.pinStart = PIN_OUTPUT;
+                c1.gateEnd = prevOrIndex;
+                c1.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c1);
+
+                if (andOrGates.size() > 1) {
+                    Cable c2;
+                    c2.gateStart = andOrGates[1];
+                    c2.pinStart = PIN_OUTPUT;
+                    c2.gateEnd = prevOrIndex;
+                    c2.pinEnd = PIN_INPUT2;
+                    circuit.cables.push_back(c2);
+                }
+
+                i = 1;
+            }
+            else if (i < andOrGates.size()) {
+                // ORs adicionales
+                GateInstance orGate;
+                orGate.type = GATE_OR;
+                orGate.x = 550 + (i - 1) * 80;
+                orGate.y = 200;
+                circuit.ComputePins(orGate);
+                circuit.gates.push_back(orGate);
+
+                int newOrIndex = circuit.gates.size() - 1;
+
+                Cable c1;
+                c1.gateStart = prevOrIndex;
+                c1.pinStart = PIN_OUTPUT;
+                c1.gateEnd = newOrIndex;
+                c1.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c1);
+
+                Cable c2;
+                c2.gateStart = andOrGates[i];
+                c2.pinStart = PIN_OUTPUT;
+                c2.gateEnd = newOrIndex;
+                c2.pinEnd = PIN_INPUT2;
+                circuit.cables.push_back(c2);
+
+                prevOrIndex = newOrIndex;
+            }
+        }
+
+        finalOutputGate = prevOrIndex;
+    }
+
+    // 4. LED de salida
+    GateInstance led;
+    led.type = GATE_LED;
+    led.x = 750;
+    led.y = 200;
+    circuit.ComputePins(led);
+    circuit.gates.push_back(led);
+
+    int ledIndex = circuit.gates.size() - 1;
+
+    Cable out;
+    out.gateStart = finalOutputGate;
+    out.pinStart = PIN_OUTPUT;
+    out.gateEnd = ledIndex;
+    out.pinEnd = PIN_INPUT1;
+    circuit.cables.push_back(out);
+
+    circuit.PropagateSignals();
+}
+
+// Función para convertir índice a código Gray
+int ToGrayCode(int n) {
+    return n ^ (n >> 1);
+}
+
+int FromGrayCode(int gray) {
+    int binary = 0;
+    while (gray) {
+        binary ^= gray;
+        gray >>= 1;
+    }
+    return binary;
+}
+
+int GetKarnaughCellIndex(int row, int col, int numVars) {
+    int rowBits = numVars / 2;           // Bits controlados por filas
+    int colBits = (numVars + 1) / 2;     // Bits controlados por columnas
+
+    // Convertir fila y columna a código Gray
+    int grayRow = ToGrayCode(row);
+    int grayCol = ToGrayCode(col);
+
+    // El índice binario se construye como: [bits_columna][bits_fila]
+    // Para 3 variables: AB|C donde AB son columnas, C es fila
+    // Para 4 variables: AB|CD donde AB son columnas, CD son filas
+    int index = (grayCol << rowBits) | grayRow;
+
+    return index;
+}
+
+// Función para obtener el índice real de la celda en el mapa
+int GetKarnaughIndex(int row, int col, int numVars) {
+    int rows = 1 << (numVars / 2);
+    int cols = 1 << ((numVars + 1) / 2);
+
+    int grayRow = ToGrayCode(row);
+    int grayCol = ToGrayCode(col);
+
+    return grayRow * cols + grayCol;
+}
+
+KarnaughMap BuildKarnaughMap(const BooleanExpression& expr) {
+    KarnaughMap km;
+    km.vars = GetVariables(expr);
+    km.numVars = km.vars.size();
+
+    if (km.numVars < 2 || km.numVars > 4) {
+        // Error: solo soportamos 2-4 variables
+        return km;
+    }
+
+    int totalCells = 1 << km.numVars;
+    km.cells.resize(totalCells, 0);
+
+    // IMPORTANTE: Evaluar cada término de la expresión
+    for (int visualRow = 0; visualRow < (1 << (km.numVars / 2)); visualRow++) {
+        for (int visualCol = 0; visualCol < (1 << ((km.numVars + 1) / 2)); visualCol++) {
+
+            // Obtener el índice binario correcto para esta posición visual
+            int binaryIndex = GetKarnaughCellIndex(visualRow, visualCol, km.numVars);
+
+            // Evaluar la expresión para este índice binario
+            bool cellValue = false;
+
+            for (const auto& term : expr.terms) {
+                if (EvaluateTerm(term, km.vars, binaryIndex)) {
+                    cellValue = true;
+                    break; // OR entre términos
+                }
+            }
+
+            // Guardar el valor en la posición del mapa visual
+            // USAR índice lineal: row * cols + col
+            int cols = 1 << ((km.numVars + 1) / 2);
+            int mapIndex = visualRow * cols + visualCol;
+
+            km.cells[mapIndex] = cellValue ? 1 : 0;
+        }
+    }
+
+    return km;
+}
+
+/*void BuildCircuitFromExpression(const BooleanExpression& expr) {
+
+    circuit.Clear();
+
+    // 1. Crear SWITCH por cada variable
+    map<char, int> switchIndex;
+    int x = 50;
+    int y = 100;
+
+    for (char v : expr.vars) {
+        GateInstance sw;
+        sw.type = GATE_SWITCH;
+        sw.x = x;
+        sw.y = y;
+        sw.val_out = 0;
+
+        circuit.ComputePins(sw);
+        circuit.gates.push_back(sw);
+
+        switchIndex[v] = circuit.gates.size() - 1;
+        y += 80;
+    }
+
+    // 2. Crear AND por cada término
+    vector<int> andGates;
+    int andX = 300;
+    int andY = 120;
+
+    for (const auto& term : expr.terms) {
+        GateInstance andGate;
+        andGate.type = GATE_AND;
+        andGate.x = andX;
+        andGate.y = andY;
+
+        circuit.ComputePins(andGate);
+        circuit.gates.push_back(andGate);
+
+        int andIndex = circuit.gates.size() - 1;
+        andGates.push_back(andIndex);
+
+        // Conectar literales
+        int inputPin = PIN_INPUT1;
+
+        for (const auto& lit : term.literals) {
+            int srcGate = switchIndex[lit.var];
+
+            int finalSrc = srcGate;
+
+            if (lit.negated) {
+                GateInstance notGate;
+                notGate.type = GATE_NOT;
+                notGate.x = andX - 120;
+                notGate.y = andY;
+
+                circuit.ComputePins(notGate);
+                circuit.gates.push_back(notGate);
+
+                int notIndex = circuit.gates.size() - 1;
+
+                // SWITCH → NOT
+                Cable c1;
+                c1.gateStart = srcGate;
+                c1.pinStart = PIN_OUTPUT;
+                c1.gateEnd = notIndex;
+                c1.pinEnd = PIN_INPUT1;
+                circuit.cables.push_back(c1);
+
+                finalSrc = notIndex;
+            }
+
+            // Fuente → AND
+            Cable c2;
+            c2.gateStart = finalSrc;
+            c2.pinStart = PIN_OUTPUT;
+            c2.gateEnd = andIndex;
+            c2.pinEnd = inputPin;
+            circuit.cables.push_back(c2);
+
+            inputPin = PIN_INPUT2;
+        }
+
+        andY += 100;
+    }
+
+    // 3. OR final
+    GateInstance orGate;
+    orGate.type = GATE_OR;
+    orGate.x = 550;
+    orGate.y = 200;
+
+    circuit.ComputePins(orGate);
+    circuit.gates.push_back(orGate);
+
+    int orIndex = circuit.gates.size() - 1;
+
+    // Conectar ANDs al OR
+    for (size_t i = 0; i < andGates.size(); i++) {
+        Cable c;
+        c.gateStart = andGates[i];
+        c.pinStart = PIN_OUTPUT;
+        c.gateEnd = orIndex;
+        c.pinEnd = (i == 0) ? PIN_INPUT1 : PIN_INPUT2;
+        circuit.cables.push_back(c);
+    }
+
+    // 4. LED de salida
+    GateInstance led;
+    led.type = GATE_LED;
+    led.x = 750;
+    led.y = 200;
+
+    circuit.ComputePins(led);
+    circuit.gates.push_back(led);
+
+    int ledIndex = circuit.gates.size() - 1;
+
+    Cable out;
+    out.gateStart = orIndex;
+    out.pinStart = PIN_OUTPUT;
+    out.gateEnd = ledIndex;
+    out.pinEnd = PIN_INPUT1;
+    circuit.cables.push_back(out);
+
+    circuit.PropagateSignals();
+
+}*/
+
+INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK DlgKarnaugh(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK DlgKarnaughView(HWND, UINT, WPARAM, LPARAM);
+
+>>>>>>> Stashed changes
 
 
 INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -600,6 +1592,13 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                              MAKEINTRESOURCE(DLG_SIMULATOR),
                              hwndDlg,
                              DlgSimulator);
+                    return TRUE;
+
+                case ID_MENU_KARNAUGH:
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_KARNAUGH),
+                        hwndDlg,
+                        DlgKarnaugh);
                     return TRUE;
 
                 case ID_MENU_MATH:
@@ -622,10 +1621,282 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     return FALSE;
 }
 
+INT_PTR CALLBACK DlgKarnaugh(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch(uMsg) {
+        case WM_INITDIALOG:
+            return TRUE;
+
+        case WM_CLOSE:
+            EndDialog(hwndDlg, 0);
+            return TRUE;
+
+        case WM_COMMAND: {
+            switch(LOWORD(wParam)) {
+
+                case ID_BTN_SIMPLIFICAR: { // Simplificar
+                    char buffer[256];
+                    GetDlgItemText(hwndDlg, 4001, buffer, 255);
+
+                    BooleanExpression expr = ParseExpression(buffer);
+                    KarnaughMap km = BuildKarnaughMap(expr);
+
+                    vector<KGroup> groups = GroupKarnaugh(km);
+                    BooleanExpression rawExpr = GroupsToExpression(groups, km);
+                    g_simplifiedExpression = SimplifyExpression(rawExpr);
+                    g_expressionForSimulation = ExprToString(g_simplifiedExpression);
+
+                    g_lastKMap = km;
+                    g_lastGroups = groups;
+
+                    string debug = "Mapa Karnaugh:\n";
+                    for (int i = 0; i < km.cells.size(); i++) {
+                        debug += to_string(km.cells[i]) + " ";
+                    }
+
+                    MessageBox(hwndDlg, debug.c_str(), "DEBUG", MB_OK);
+
+                    string result = "vars: ";
+                    for (char v : expr.vars) {
+                        result += v;
+                        result += " ";
+                    }
+
+                    result += "\nTerminos:\n";
+
+                    for (auto& term : expr.terms) {
+                        for (auto& lit : term.literals) {
+                            result += lit.var;
+                            if (lit.negated) result += "'";
+                        }
+                        result += "\n";
+                    }
+
+                    SetDlgItemText(hwndDlg, 4004, result.c_str());
+
+                    DialogBox(
+                        hInst,
+                        MAKEINTRESOURCE(DLG_KARNAUGH_VIEW),
+                        hwndDlg,
+                        DlgKarnaughView
+                    );
+
+
+                    return TRUE;
+                }
+
+
+
+
+                case ID_BTN_SEND_SIMULATOR: {
+
+                    if (g_expressionForSimulation.empty()) {
+                        MessageBox(hwndDlg,
+                            "Primero simplifique la expresión con Karnaugh",
+                            "Aviso",
+                            MB_OK | MB_ICONWARNING);
+                        return TRUE;
+                    }
+
+                    // Convertir string → BooleanExpression
+                    g_simplifiedExpression = ParseExpression(g_expressionForSimulation);
+
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_SIMULATOR),
+                        hwndDlg,
+                        DlgSimulator);
+
+                    return TRUE;
+                }
+
+
+            }
+            return TRUE;
+        }
+
+
+    }
+    return FALSE;
+}
+
+INT_PTR CALLBACK DlgKarnaughView(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwndDlg, &ps);
+
+        int rows = 1 << (g_lastKMap.numVars / 2);
+        int cols = 1 << ((g_lastKMap.numVars + 1) / 2);
+
+        int cellW = 60;
+        int cellH = 50;
+        int offsetX = 100;
+        int offsetY = 80;
+
+        // Dibujar etiquetas de columnas (código Gray)
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(0, 0, 0));
+
+        for (int j = 0; j < cols; j++) {
+            int grayCode = ToGrayCode(j);
+            char label[10];
+
+            // Formato binario del código Gray
+            string binary = "";
+            int colBits = (g_lastKMap.numVars + 1) / 2;
+            for (int b = colBits - 1; b >= 0; b--) {
+                binary += ((grayCode >> b) & 1) ? '1' : '0';
+            }
+
+            strcpy(label, binary.c_str());
+
+            RECT r{
+                offsetX + j * cellW,
+                offsetY - 30,
+                offsetX + (j + 1) * cellW,
+                offsetY
+            };
+            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+
+        // Dibujar etiquetas de filas (código Gray)
+        for (int i = 0; i < rows; i++) {
+            int grayCode = ToGrayCode(i);
+            char label[10];
+
+            string binary = "";
+            int rowBits = g_lastKMap.numVars / 2;
+            for (int b = rowBits - 1; b >= 0; b--) {
+                binary += ((grayCode >> b) & 1) ? '1' : '0';
+            }
+
+            strcpy(label, binary.c_str());
+
+            RECT r{
+                offsetX - 70,
+                offsetY + i * cellH,
+                offsetX - 10,
+                offsetY + (i + 1) * cellH
+            };
+            DrawTextA(hdc, label, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+
+        // Dibujar nombres de variables
+        string colVars = "";
+        int colBits = (g_lastKMap.numVars + 1) / 2;
+        for (int i = 0; i < colBits && i < (int)g_lastKMap.vars.size(); i++) {
+            colVars += g_lastKMap.vars[i];
+        }
+
+        string rowVars = "";
+        int rowBits = g_lastKMap.numVars / 2;
+        for (int i = colBits; i < (int)g_lastKMap.vars.size(); i++) {
+            rowVars += g_lastKMap.vars[i];
+        }
+
+        // Etiqueta superior (variables de columna)
+        RECT rColLabel{offsetX, offsetY - 60, offsetX + cols * cellW, offsetY - 30};
+        DrawTextA(hdc, colVars.c_str(), -1, &rColLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        // Etiqueta izquierda (variables de fila)
+        RECT rRowLabel{offsetX - 90, offsetY, offsetX - 70, offsetY + rows * cellH};
+        DrawTextA(hdc, rowVars.c_str(), -1, &rRowLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        // Dibujar celdas con valores
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                int mapIndex = i * cols + j;
+
+                RECT r{
+                    offsetX + j * cellW,
+                    offsetY + i * cellH,
+                    offsetX + (j + 1) * cellW,
+                    offsetY + (i + 1) * cellH
+                };
+
+                // Fondo de la celda
+                if (mapIndex < (int)g_lastKMap.cells.size() && g_lastKMap.cells[mapIndex] == 1) {
+                    HBRUSH hBrush = CreateSolidBrush(RGB(200, 255, 200));
+                    FillRect(hdc, &r, hBrush);
+                    DeleteObject(hBrush);
+                }
+
+                Rectangle(hdc, r.left, r.top, r.right, r.bottom);
+
+                // Valor de la celda
+                if (mapIndex < (int)g_lastKMap.cells.size()) {
+                    char text[2] = { char('0' + g_lastKMap.cells[mapIndex]), 0 };
+
+                    HFONT hFont = CreateFont(20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
+                    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+                    SetTextColor(hdc, RGB(0, 0, 0));
+                    DrawTextA(hdc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+                    SelectObject(hdc, hOldFont);
+                    DeleteObject(hFont);
+                }
+            }
+        }
+
+        // Dibujar agrupaciones con colores
+        COLORREF colors[] = {
+            RGB(255, 100, 100),
+            RGB(100, 100, 255),
+            RGB(255, 255, 100),
+            RGB(255, 100, 255),
+            RGB(100, 255, 255)
+        };
+
+        for (size_t g = 0; g < g_lastGroups.size() && g < 5; g++) {
+            HPEN hPen = CreatePen(PS_SOLID, 3, colors[g % 5]);
+            HGDIOBJ oldPen = SelectObject(hdc, hPen);
+            HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+            HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+
+            for (int idx : g_lastGroups[g].cells) {
+                int i = idx / cols;
+                int j = idx % cols;
+
+                Rectangle(
+                    hdc,
+                    offsetX + j * cellW + 3,
+                    offsetY + i * cellH + 3,
+                    offsetX + (j + 1) * cellW - 3,
+                    offsetY + (i + 1) * cellH - 3
+                );
+            }
+
+            SelectObject(hdc, oldPen);
+            SelectObject(hdc, oldBrush);
+            DeleteObject(hPen);
+        }
+
+        EndPaint(hwndDlg, &ps);
+        return TRUE;
+    }
+
+    case WM_CLOSE:
+        EndDialog(hwndDlg, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+
 INT_PTR CALLBACK DlgSimulator(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
         case WM_INITDIALOG:
+
             circuit.Clear();
+
+            if (!g_simplifiedExpression.terms.empty()) {
+                BuildCircuitFromExpression(g_simplifiedExpression);
+                InvalidateRect(hwndDlg, NULL, TRUE);
+            }
+
+
             currentMode = MODE_NORMAL;
             return TRUE;
 

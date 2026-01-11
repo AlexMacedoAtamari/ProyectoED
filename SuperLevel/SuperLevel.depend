@@ -1,13 +1,21 @@
 # depslib dependency file v1.0
+<<<<<<< Updated upstream
 1768098953 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+=======
+1768096041 source:e:\codeblocks\proyectoed\superlevel\resource.rc
+>>>>>>> Stashed changes
 	<windows.h>
 	<commctrl.h>
 	<richedit.h>
 	"resource.h"
 
+<<<<<<< Updated upstream
 1768098953 e:\codeblocks\proyectoed\superlevel\resource.h
+=======
+1768095847 e:\codeblocks\proyectoed\superlevel\resource.h
+>>>>>>> Stashed changes
 
-1768070962 source:e:\codeblocks\proyectoed\superlevel\main.cpp
+1768095847 source:e:\codeblocks\proyectoed\superlevel\main.cpp
 	<windows.h>
 	<commctrl.h>
 	<stdio.h>
@@ -16,6 +24,8 @@
 	<set>
 	<cmath>
 	<string>
+	<map>
+	<cctype>
 	"resource.h"
 
 1767825112 source:e:\codeblocks\proyectoed\superlevel\circuit.cpp

@@ -24,6 +24,7 @@
 #define ID_MENU_MATH 3001
 #define ID_MENU_TREES 3002
 
+<<<<<<< Updated upstream
 #define DLG_SIMULATOR 1010
 
 #define DLG_MATH 1011
@@ -64,3 +65,18 @@
 #define ID_BTN_GRAPH_PRIM      5015
 #define ID_BTN_GRAPH_KRUSKAL   5016
 #define ID_BTN_GRAPH_RESET     5017
+=======
+#define ID_MENU_SIMULATOR      3000
+#define ID_MENU_KARNAUGH       3001
+#define ID_MENU_MATH           3002
+#define ID_MENU_TREES          3003
+
+
+#define DLG_SIMULATOR          1010
+#define DLG_KARNAUGH           2000
+#define DLG_KARNAUGH_VIEW      2001
+
+#define ID_BTN_SIMPLIFICAR     4002
+#define ID_BTN_SEND_SIMULATOR  4005
+
+>>>>>>> Stashed changes
