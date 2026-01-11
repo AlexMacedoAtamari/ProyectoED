@@ -78,7 +78,40 @@ BEGIN
 
     PUSHBUTTON "Salir", IDC_MATH_SALIR, 190, 480, 80, 25
 END
+DLG_TREES DIALOG 0, 0, 850, 600
+STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VISIBLE | WS_POPUP | WS_SYSMENU
+CAPTION "Arbol Binario de Busqueda (BST) / Grafos"
+FONT 8, "Ms Shell Dlg"
+BEGIN
+    GROUPBOX        "Operaciones (Arbol)", -1, 10, 5, 430, 45
+    LTEXT           "Valor:", -1, 20, 23, 30, 10
+    EDITTEXT        ID_EDIT_TREE_VALUE, 55, 20, 50, 20, ES_NUMBER
+    PUSHBUTTON      "Insertar",     ID_BTN_TREE_INSERT,   115, 20, 60, 25
+    PUSHBUTTON      "Eliminar",     ID_BTN_TREE_DELETE,   185, 20, 60, 25
+    PUSHBUTTON      "Buscar",       ID_BTN_TREE_SEARCH,   255, 20, 60, 25
+    PUSHBUTTON      "Aleatorio",    ID_BTN_TREE_RANDOM,   325, 20, 60, 25
+    PUSHBUTTON      "Limpiar",      ID_BTN_TREE_CLEAR,    395, 20, 40, 25
 
+    GROUPBOX        "Recorridos (Arbol)", -1, 450, 5, 250, 45
+    PUSHBUTTON      "Inorden",      ID_BTN_TREE_INORDER,   460, 20, 70, 25
+    PUSHBUTTON      "Preorden",     ID_BTN_TREE_PREORDER,  540, 20, 70, 25
+    PUSHBUTTON      "Postorden",    ID_BTN_TREE_POSTORDER, 620, 20, 70, 25
+
+    GROUPBOX        "Grafos", -1, 10, 55, 430, 45
+    PUSHBUTTON      "Modo Grafo",   ID_BTN_TOGGLE_MODE,   20, 70, 80, 25
+    PUSHBUTTON      "Grafo 1 (5 nodos)", ID_BTN_GRAPH_SELECT1, 110, 70, 100, 25
+    PUSHBUTTON      "Grafo 2 (8 nodos)", ID_BTN_GRAPH_SELECT2, 220, 70, 100, 25
+    PUSHBUTTON      "Prim",         ID_BTN_GRAPH_PRIM,     330, 70, 50, 25
+    PUSHBUTTON      "Kruskal",      ID_BTN_GRAPH_KRUSKAL,  390, 70, 60, 25
+
+    GROUPBOX        "Control", -1, 710, 5, 100, 45
+    PUSHBUTTON      "Salir",        ID_BTN_TREE_EXIT,      720, 20, 80, 25
+
+    LTEXT           "Resultado:", -1, 10, 110, 50, 10
+    LTEXT           "", ID_TEXT_TREE_RESULT, 70, 110, 300, 10
+
+    LTEXT           "Area de visualizacion - El Arbol/Grafo se dibujara aqui", -1, 10, 125, 300, 10
+END
 IDR_MAINMENU MENU
 BEGIN
     POPUP "Modo"

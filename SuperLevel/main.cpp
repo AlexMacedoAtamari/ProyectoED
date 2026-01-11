@@ -6,6 +6,8 @@
 #include <set>
 #include <cmath>
 #include <string>
+#include <ctime>
+#include <queue>
 #include "resource.h"
 
 using namespace std;
@@ -579,6 +581,8 @@ bool showTempCable = false;
 
 INT_PTR CALLBACK DlgSimulator(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK DlgMath(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK DlgTrees(HWND, UINT, WPARAM, LPARAM);
+
 
 INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch(uMsg) {
@@ -606,10 +610,10 @@ INT_PTR CALLBACK DlgMain(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     return TRUE;
 
                 case ID_MENU_TREES:
-                    MessageBox(hwndDlg,
-                              "Módulo de árboles y grafos aún no implementado",
-                              "Información",
-                              MB_OK | MB_ICONINFORMATION);
+                    DialogBox(hInst,
+                        MAKEINTRESOURCE(DLG_TREES),
+                        hwndDlg,
+                        DlgTrees);
                     return TRUE;
             }
             return TRUE;
@@ -1298,7 +1302,676 @@ INT_PTR CALLBACK DlgMath(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     }
     return FALSE;
 }
+struct TreeNode {
+    int value;
+    TreeNode* left;
+    TreeNode* right;
+    int x, y;
+    bool highlighted;
 
+    TreeNode(int val) : value(val), left(nullptr), right(nullptr),
+                        x(0), y(0), highlighted(false) {}
+};
+
+class BinarySearchTree {
+private:
+    TreeNode* root;
+    vector<int> traversalResult;
+
+    TreeNode* InsertRec(TreeNode* node, int value) {
+        if (node == nullptr) {
+            return new TreeNode(value);
+        }
+
+        if (value < node->value) {
+            node->left = InsertRec(node->left, value);
+        } else if (value > node->value) {
+            node->right = InsertRec(node->right, value);
+        }
+
+        return node;
+    }
+
+    TreeNode* FindMin(TreeNode* node) {
+        while (node && node->left != nullptr) {
+            node = node->left;
+        }
+        return node;
+    }
+
+    TreeNode* DeleteRec(TreeNode* node, int value, bool& found) {
+        if (node == nullptr) {
+            found = false;
+            return nullptr;
+        }
+
+        if (value < node->value) {
+            node->left = DeleteRec(node->left, value, found);
+        } else if (value > node->value) {
+            node->right = DeleteRec(node->right, value, found);
+        } else {
+            found = true;
+
+            if (node->left == nullptr && node->right == nullptr) {
+                delete node;
+                return nullptr;
+            }
+            else if (node->left == nullptr) {
+                TreeNode* temp = node->right;
+                delete node;
+                return temp;
+            } else if (node->right == nullptr) {
+                TreeNode* temp = node->left;
+                delete node;
+                return temp;
+            }
+            else {
+                TreeNode* temp = FindMin(node->right);
+                node->value = temp->value;
+                node->right = DeleteRec(node->right, temp->value, found);
+            }
+        }
+
+        return node;
+    }
+
+    bool SearchRec(TreeNode* node, int value) {
+        if (node == nullptr) return false;
+        if (node->value == value) return true;
+
+        if (value < node->value) {
+            return SearchRec(node->left, value);
+        } else {
+            return SearchRec(node->right, value);
+        }
+    }
+
+    void InorderRec(TreeNode* node) {
+        if (node == nullptr) return;
+        InorderRec(node->left);
+        traversalResult.push_back(node->value);
+        InorderRec(node->right);
+    }
+
+    void PreorderRec(TreeNode* node) {
+        if (node == nullptr) return;
+        traversalResult.push_back(node->value);
+        PreorderRec(node->left);
+        PreorderRec(node->right);
+    }
+
+    void PostorderRec(TreeNode* node) {
+        if (node == nullptr) return;
+        PostorderRec(node->left);
+        PostorderRec(node->right);
+        traversalResult.push_back(node->value);
+    }
+
+    void CalculatePositions(TreeNode* node, int x, int y, int offset) {
+        if (node == nullptr) return;
+
+        node->x = x;
+        node->y = y;
+
+        if (node->left) {
+            CalculatePositions(node->left, x - offset, y + 60, offset / 2);
+        }
+        if (node->right) {
+            CalculatePositions(node->right, x + offset, y + 60, offset / 2);
+        }
+    }
+
+    int CountNodes(TreeNode* node) {
+        if (node == nullptr) return 0;
+        return 1 + CountNodes(node->left) + CountNodes(node->right);
+    }
+
+    int GetHeight(TreeNode* node) {
+        if (node == nullptr) return 0;
+        return 1 + max(GetHeight(node->left), GetHeight(node->right));
+    }
+
+    void ClearRec(TreeNode* node) {
+        if (node == nullptr) return;
+        ClearRec(node->left);
+        ClearRec(node->right);
+        delete node;
+    }
+
+    void DrawTreeRec(HDC hdc, TreeNode* node) {
+        if (node == nullptr) return;
+
+        if (node->left) {
+            MoveToEx(hdc, node->x, node->y, NULL);
+            LineTo(hdc, node->left->x, node->left->y);
+            DrawTreeRec(hdc, node->left);
+        }
+
+        if (node->right) {
+            MoveToEx(hdc, node->x, node->y, NULL);
+            LineTo(hdc, node->right->x, node->right->y);
+            DrawTreeRec(hdc, node->right);
+        }
+
+        COLORREF nodeColor = node->highlighted ? RGB(255, 200, 0) : RGB(100, 150, 255);
+        HBRUSH brush = CreateSolidBrush(nodeColor);
+        HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, brush);
+
+        Ellipse(hdc, node->x - 20, node->y - 20, node->x + 20, node->y + 20);
+
+        SelectObject(hdc, oldBrush);
+        DeleteObject(brush);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        char valueStr[20];
+        sprintf(valueStr, "%d", node->value);
+
+        SIZE textSize;
+        GetTextExtentPoint32(hdc, valueStr, strlen(valueStr), &textSize);
+        TextOut(hdc, node->x - textSize.cx/2, node->y - textSize.cy/2,
+                valueStr, strlen(valueStr));
+    }
+
+public:
+    BinarySearchTree() : root(nullptr) {}
+
+    ~BinarySearchTree() {
+        Clear();
+    }
+
+    void Insert(int value) {
+        root = InsertRec(root, value);
+    }
+
+    bool Delete(int value) {
+        bool found = false;
+        root = DeleteRec(root, value, found);
+        return found;
+    }
+
+    bool Search(int value) {
+        return SearchRec(root, value);
+    }
+
+    vector<int> InorderTraversal() {
+        traversalResult.clear();
+        InorderRec(root);
+        return traversalResult;
+    }
+
+    vector<int> PreorderTraversal() {
+        traversalResult.clear();
+        PreorderRec(root);
+        return traversalResult;
+    }
+
+    vector<int> PostorderTraversal() {
+        traversalResult.clear();
+        PostorderRec(root);
+        return traversalResult;
+    }
+
+    void Clear() {
+        ClearRec(root);
+        root = nullptr;
+    }
+
+    bool IsEmpty() {
+        return root == nullptr;
+    }
+
+    void UpdatePositions(int startX, int startY) {
+    if (root == nullptr) return;
+    int nodeCount = CountNodes(root);
+    int offset = 80 + (nodeCount * 8);
+    if (offset > 300) offset = 300;
+    CalculatePositions(root, startX, startY, offset);
+}
+
+    void DrawTree(HDC hdc) {
+        if (root == nullptr) {
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(100, 100, 100));
+            const char* msg = "El árbol está vacío. Inserta valores para comenzar.";
+            TextOut(hdc, 400, 400, msg, strlen(msg));
+            return;
+        }
+
+        DrawTreeRec(hdc, root);
+
+    }
+
+    string GetStats() {
+        char buffer[200];
+        sprintf(buffer, "Nodos: %d  |  Altura: %d",
+                CountNodes(root), GetHeight(root));
+        return string(buffer);
+    }
+};
+
+BinarySearchTree bst;
+enum EdgeState { EDGE_NONE, EDGE_CONSIDERED, EDGE_SELECTED };
+
+struct Edge {
+    int u, v, weight;
+    EdgeState state;
+    Edge(int u, int v, int w) : u(u), v(v), weight(w), state(EDGE_NONE) {}
+};
+
+class Graph {
+private:
+    int V; 
+    vector<vector<pair<int, int>>> adj; 
+    vector<Edge> edges; 
+    vector<pair<int, int>> positions;
+
+    void CalculatePositions(int centerX, int centerY, int radius) {
+        positions.resize(V);
+        for (int i = 0; i < V; i++) {
+            double angle = 2 * M_PI * i / V;
+            positions[i].first = centerX + (int)(radius * cos(angle));
+            positions[i].second = centerY + (int)(radius * sin(angle));
+        }
+    }
+
+public:
+    Graph(int v) : V(v), adj(v) {
+        CalculatePositions(500, 400, 150);
+    }
+
+    void AddEdge(int u, int v, int w) {
+        adj[u].push_back({v, w});
+        adj[v].push_back({u, w});
+        edges.push_back(Edge(u, v, w));
+    }
+
+    vector<Edge> PrimMST() {
+        vector<Edge> mst;
+        vector<bool> visited(V, false);
+        priority_queue<pair<int, pair<int, int>>, vector<pair<int, pair<int, int>>>, greater<pair<int, pair<int, int>>>> pq;
+
+        visited[0] = true;
+        for (auto& p : adj[0]) {
+            pq.push({p.second, {0, p.first}});
+        }
+
+        while (!pq.empty()) {
+            auto top = pq.top(); pq.pop();
+            int weight = top.first;
+            auto nodes = top.second;
+            int u = nodes.first, v = nodes.second;
+
+            if (visited[v]) continue;
+            visited[v] = true;
+            mst.push_back(Edge(u, v, weight));
+
+            for (auto& p : adj[v]) {
+                if (!visited[p.first]) {
+                    pq.push({p.second, {v, p.first}});
+                }
+            }
+        }
+        return mst;
+    }
+
+    vector<Edge> KruskalMST() {
+        vector<Edge> mst;
+        sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b) {
+            return a.weight < b.weight;
+        });
+
+        vector<int> parent(V);
+        for (int i = 0; i < V; i++) parent[i] = i;
+
+        auto find = [&](auto& self, int x) -> int {
+            return parent[x] == x ? x : parent[x] = self(self, parent[x]);
+        };
+
+        for (auto& e : edges) {
+            int pu = find(find, e.u), pv = find(find, e.v);
+            if (pu != pv) {
+                parent[pu] = pv;
+                mst.push_back(e);
+            }
+        }
+        return mst;
+    }
+
+    void DrawGraph(HDC hdc, const vector<Edge>& mstEdges = {}) {
+        for (auto& e : edges) {
+            int x1 = positions[e.u].first, y1 = positions[e.u].second;
+            int x2 = positions[e.v].first, y2 = positions[e.v].second;
+
+            COLORREF color = RGB(100, 100, 100); 
+            if (e.state == EDGE_CONSIDERED) color = RGB(255, 255, 0); 
+            else if (e.state == EDGE_SELECTED) color = RGB(0, 255, 0); 
+
+            GDIGuard pen(hdc, CreatePen(PS_SOLID, 2, color));
+            MoveToEx(hdc, x1, y1, NULL);
+            LineTo(hdc, x2, y2);
+
+            int midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+            char buf[10];
+            sprintf(buf, "%d", e.weight);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(0, 0, 0));
+            TextOut(hdc, midX, midY, buf, strlen(buf));
+        }
+
+        for (int i = 0; i < V; i++) {
+            int x = positions[i].first, y = positions[i].second;
+            GDIGuard brush(hdc, CreateSolidBrush(RGB(100, 150, 255)));
+            Ellipse(hdc, x - 20, y - 20, x + 20, y + 20);
+
+            char buf[10];
+            sprintf(buf, "%d", i);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(255, 255, 255));
+            TextOut(hdc, x - 5, y - 7, buf, strlen(buf));
+        }
+    }
+
+    void ResetEdges() {
+        for (auto& e : edges) e.state = EDGE_NONE;
+    }
+
+    void SetMSTEdges(const vector<Edge>& mst) {
+        ResetEdges();
+        for (auto& e : mst) {
+            for (auto& ge : edges) {
+                if ((ge.u == e.u && ge.v == e.v) || (ge.u == e.v && ge.v == e.u)) {
+                    ge.state = EDGE_SELECTED;
+                    break;
+                }
+            }
+        }
+    }
+};
+Graph* currentGraph = nullptr;
+bool isGraphMode = false;
+INT_PTR CALLBACK DlgTrees(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch(uMsg) {
+        case WM_INITDIALOG:
+            bst.Clear();
+            if (currentGraph) delete currentGraph;
+            currentGraph = nullptr;
+            isGraphMode = false;
+            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Listo para operaciones");
+            return TRUE;
+
+        case WM_CLOSE:
+            if (currentGraph) delete currentGraph;
+            EndDialog(hwndDlg, 0);
+            return TRUE;
+
+        case WM_COMMAND: {
+            if (isGraphMode) {
+                switch(LOWORD(wParam)) {
+                    case ID_BTN_TOGGLE_MODE:
+                        isGraphMode = false;
+                        if (currentGraph) delete currentGraph;
+                        currentGraph = nullptr;
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Modo Arbol activado");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+
+                    case ID_BTN_GRAPH_SELECT1: {
+                        if (currentGraph) delete currentGraph;
+                        currentGraph = new Graph(5);
+                        currentGraph->AddEdge(0, 1, 2);
+                        currentGraph->AddEdge(0, 3, 6);
+                        currentGraph->AddEdge(1, 2, 3);
+                        currentGraph->AddEdge(1, 3, 8);
+                        currentGraph->AddEdge(1, 4, 5);
+                        currentGraph->AddEdge(2, 4, 7);
+                        currentGraph->AddEdge(3, 4, 9);
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Grafo 1 cargado (5 nodos)");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+
+                    case ID_BTN_GRAPH_SELECT2: {
+                        if (currentGraph) delete currentGraph;
+                        currentGraph = new Graph(8);
+                        currentGraph->AddEdge(0, 1, 4);
+                        currentGraph->AddEdge(0, 7, 8);
+                        currentGraph->AddEdge(1, 2, 8);
+                        currentGraph->AddEdge(1, 7, 11);
+                        currentGraph->AddEdge(2, 3, 7);
+                        currentGraph->AddEdge(2, 5, 4);
+                        currentGraph->AddEdge(2, 7, 2); 
+                        currentGraph->AddEdge(3, 4, 9);
+                        currentGraph->AddEdge(3, 5, 14);
+                        currentGraph->AddEdge(4, 5, 10);
+                        currentGraph->AddEdge(5, 6, 2);
+                        currentGraph->AddEdge(6, 7, 1);
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Grafo 2 cargado (8 nodos)");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                        }
+                    }
+
+                    case ID_BTN_GRAPH_PRIM: {
+                        if (!currentGraph) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Selecciona un grafo primero");
+                            break;
+                        }
+                        auto mst = currentGraph->PrimMST();
+                        currentGraph->SetMSTEdges(mst);
+                        char buf[100];
+                        sprintf(buf, "MST con Prim completado - %d aristas", (int)mst.size());
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buf);
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+
+                    case ID_BTN_GRAPH_KRUSKAL: {
+                        if (!currentGraph) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Selecciona un grafo primero");
+                            break;
+                        }
+                        auto mst = currentGraph->KruskalMST();
+                        currentGraph->SetMSTEdges(mst);
+                        char buf[100];
+                        sprintf(buf, "MST con Kruskal completado - %d aristas", (int)mst.size());
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buf);
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+
+                    case ID_BTN_GRAPH_RESET: {
+                        if (currentGraph) currentGraph->ResetEdges();
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Grafo reseteado");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+                }
+            } else {
+                switch(LOWORD(wParam)) {
+                    case ID_BTN_TOGGLE_MODE:
+                        isGraphMode = true;
+                        bst.Clear();
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Modo Grafo activado");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+
+                    case ID_BTN_TREE_INSERT: {
+                        char buffer[50];
+                        GetDlgItemText(hwndDlg, ID_EDIT_TREE_VALUE, buffer, 50);
+
+                        if (strlen(buffer) == 0) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Error: Ingrese un valor");
+                            break;
+                        }
+
+                        int value = atoi(buffer);
+                        bst.Insert(value);
+                        bst.UpdatePositions(500, 300 );
+
+                        sprintf(buffer, "Valor %d insertado | %s", value, bst.GetStats().c_str());
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buffer);
+                        SetDlgItemText(hwndDlg, ID_EDIT_TREE_VALUE, "");
+
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+
+                    case ID_BTN_TREE_DELETE: {
+                        char buffer[50];
+                        GetDlgItemText(hwndDlg, ID_EDIT_TREE_VALUE, buffer, 50);
+
+                        if (strlen(buffer) == 0) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Error: Ingrese un valor");
+                            break;
+                        }
+
+                        int value = atoi(buffer);
+                        bool deleted = bst.Delete(value);
+
+                        if (deleted) {
+                            bst.UpdatePositions(500, 300);
+                            sprintf(buffer, "Valor %d eliminado | %s", value, bst.GetStats().c_str());
+                        } else {
+                            sprintf(buffer, "Valor %d no encontrado", value);
+                        }
+
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buffer);
+                        SetDlgItemText(hwndDlg, ID_EDIT_TREE_VALUE, "");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+
+                    case ID_BTN_TREE_SEARCH: {
+                        char buffer[50];
+                        GetDlgItemText(hwndDlg, ID_EDIT_TREE_VALUE, buffer, 50);
+
+                        if (strlen(buffer) == 0) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Error: Ingrese un valor");
+                            break;
+                        }
+
+                        int value = atoi(buffer);
+                        bool found = bst.Search(value);
+
+                        sprintf(buffer, "Valor %d %s en el arbol", value, found ? "SI esta" : "NO esta");
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buffer);
+                        break;
+                    }
+
+                    case ID_BTN_TREE_RANDOM: {
+                        srand(time(NULL));
+                        int value = rand() % 100 + 1;
+                        bst.Insert(value);
+                        bst.UpdatePositions(500, 300);
+
+                        char buffer[100];
+                        sprintf(buffer, "Valor aleatorio %d insertado | %s", value, bst.GetStats().c_str());
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, buffer);
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+                    }
+
+                    case ID_BTN_TREE_INORDER: {
+                        if (bst.IsEmpty()) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "El arbol esta vacio");
+                            break;
+                        }
+
+                        vector<int> result = bst.InorderTraversal();
+                        string resultStr = "Inorden: ";
+                        for (size_t i = 0; i < result.size(); i++) {
+                            char num[20];
+                            sprintf(num, "%d", result[i]);
+                            resultStr += num;
+                            if (i < result.size() - 1) resultStr += ", ";
+                        }
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, resultStr.c_str());
+                        break;
+                    }
+
+                    case ID_BTN_TREE_PREORDER: {
+                        if (bst.IsEmpty()) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "El arbol esta vacio");
+                            break;
+                        }
+
+                        vector<int> result = bst.PreorderTraversal();
+                        string resultStr = "Preorden: ";
+                        for (size_t i = 0; i < result.size(); i++) {
+                            char num[20];
+                            sprintf(num, "%d", result[i]);
+                            resultStr += num;
+                            if (i < result.size() - 1) resultStr += ", ";
+                        }
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, resultStr.c_str());
+                        break;
+                    }
+
+                    case ID_BTN_TREE_POSTORDER: {
+                        if (bst.IsEmpty()) {
+                            SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "El arbol esta vacio");
+                            break;
+                        }
+
+                        vector<int> result = bst.PostorderTraversal();
+                        string resultStr = "Postorden: ";
+                        for (size_t i = 0; i < result.size(); i++) {
+                            char num[20];
+                            sprintf(num, "%d", result[i]);
+                            resultStr += num;
+                            if (i < result.size() - 1) resultStr += ", ";
+                        }
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, resultStr.c_str());
+                        break;
+                    }
+
+                    case ID_BTN_TREE_CLEAR:
+                        bst.Clear();
+                        SetDlgItemText(hwndDlg, ID_TEXT_TREE_RESULT, "Arbol limpiado");
+                        InvalidateRect(hwndDlg, NULL, TRUE);
+                        break;
+
+                    case ID_BTN_TREE_EXIT:
+                        EndDialog(hwndDlg, 0);
+                        break;
+                }
+            }
+            return TRUE;
+        }
+
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwndDlg, &ps);
+
+            RECT clientRect;
+            GetClientRect(hwndDlg, &clientRect);
+
+            HDC memDC = CreateCompatibleDC(hdc);
+            HBITMAP memBitmap = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);
+            HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+
+            HBRUSH bgBrush = CreateSolidBrush(RGB(245, 245, 250));
+            FillRect(memDC, &clientRect, bgBrush);
+            DeleteObject(bgBrush);
+
+            if (isGraphMode && currentGraph) {
+                currentGraph->DrawGraph(memDC);
+            } else {
+                bst.DrawTree(memDC);
+            }
+
+            BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, memDC, 0, 0, SRCCOPY);
+
+            SelectObject(memDC, oldBitmap);
+            DeleteObject(memBitmap);
+            DeleteDC(memDC);
+
+            EndPaint(hwndDlg, &ps);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                      LPSTR lpCmdLine, int nShowCmd) {
     hInst = hInstance;
