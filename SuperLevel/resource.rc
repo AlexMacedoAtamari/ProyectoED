@@ -2,7 +2,6 @@
 #include <commctrl.h>
 #include <richedit.h>
 #include "resource.h"
-
 LANGUAGE 0, SUBLANG_NEUTRAL
 
 DLG_MAIN DIALOG 0, 0, 1000, 600
