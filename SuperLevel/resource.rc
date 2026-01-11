@@ -2,6 +2,7 @@
 #include <commctrl.h>
 #include <richedit.h>
 #include "resource.h"
+
 LANGUAGE 0, SUBLANG_NEUTRAL
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
